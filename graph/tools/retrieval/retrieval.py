@@ -10,7 +10,12 @@ from openai import OpenAI
 from dotenv import load_dotenv
 load_dotenv(override=True)
 
-BANCO_PADRAO = Path(__file__).resolve().parents[1] / "datasets" / "deputados.sqlite"
+BANCO_PADRAO = (
+    Path(__file__).resolve().parent
+    / "dados_camara"
+    / "datasets"
+    / "deputados.sqlite"
+)
 
 
 def obter_schema(conexao):
