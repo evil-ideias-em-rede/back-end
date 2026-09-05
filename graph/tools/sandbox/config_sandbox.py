@@ -1,5 +1,6 @@
 from pathlib import Path
 
+
 SKILLS_DIR = Path(__file__).resolve().parent / "sandbox_files"
 RUNNING_IN_DOCKER = Path("/.dockerenv").exists()
 

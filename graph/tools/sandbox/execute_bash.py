@@ -1,16 +1,16 @@
+import os
 import json
 import asyncio
-from .workdir import _extrai_sandbox_dir
-from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
-from .config_sandbox import _montar_comando_sandboxed
+from .workdir import _extrai_sandbox_dir
 from .format_planning import format_planning_file
-from langgraph.prebuilt import ToolNode
+from .config_sandbox import _montar_comando_sandboxed
+from langchain_core.runnables import RunnableConfig
+
 
 def _format_warning(work_dir: str) -> str:
     error = format_planning_file(work_dir)
-    if error:
-        return f"\nNão foi possível formatar planning.json automaticamente: {error}"
+    if error: return f"\nNão foi possível formatar planning.json automaticamente: {error}"
     return ""
 
 
@@ -116,7 +116,7 @@ if __name__ == "__main__":
     "ls /proc/1/environ",
     ]
 
-    '''
+    
     for cmd in testes_bloqueio:
         resultado = asyncio.run(execute_bash(config=config_teste, comando=cmd))
         print(resultado)
@@ -171,10 +171,7 @@ if __name__ == "__main__":
                 for chamada in chamadas:
                     argumentos = chamada.get("args", {})
                     resultado = await bash.ainvoke(argumentos)
-                    mensagens.append(ToolMessage(
-                        content=resultado,
-                        tool_call_id=chamada["id"],
-                    ))
+                    mensagens.append(ToolMessage(content=resultado, tool_call_id=chamada["id"],))
 
     asyncio.run(conversar_com_llm())
-    '''
+    

@@ -1,6 +1,6 @@
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
 from auth.dependencies import CurrentUser, get_current_user
+from fastapi import APIRouter, Depends, HTTPException, status
 from db.pool import get_pool
 from db.queries import (
     create_chat_tab,
@@ -17,9 +17,9 @@ from schemas import (
     SendMessageIn,
     SendMessageOut,
 )
+from graph.main import resolve_agent_name
 from services.chat_service import run_chat_turn
 from graph.tools.sandbox.workdir import remover_workspace_do_chat
-from graph.router_state import resolve_agent_name
 
 
 router = APIRouter(prefix="/chats", tags=["chats"])
@@ -58,9 +58,7 @@ async def remove_chat(chat_id: str, user: CurrentUser = Depends(get_current_user
 
 
 @router.patch("/{chat_id}/title", status_code=status.HTTP_204_NO_CONTENT)
-async def rename_chat(
-    chat_id: str, body: ChatTabCreateIn, user: CurrentUser = Depends(get_current_user)
-):
+async def rename_chat(chat_id: str, body: ChatTabCreateIn, user: CurrentUser = Depends(get_current_user)):
     pool = get_pool()
     await _get_owned_chat_or_404(pool, chat_id, user)
     async with pool.acquire() as conn:
@@ -83,10 +81,7 @@ async def send_message(chat_id: str, body: SendMessageIn, user: CurrentUser = De
     try:
         resolve_agent_name(body.agent_name)
     except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc),) from exc
 
     async with pool.acquire() as conn:
         rows = await get_chat_messages_by_chat_id(conn, chat_id)
@@ -100,4 +95,5 @@ async def send_message(chat_id: str, body: SendMessageIn, user: CurrentUser = De
         user_input=body.text,
         agent_name=body.agent_name,
     )
+    
     return SendMessageOut(reply=reply)

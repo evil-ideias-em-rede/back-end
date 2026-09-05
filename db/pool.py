@@ -22,6 +22,5 @@ async def close_pool() -> None:
 
 
 def get_pool() -> asyncpg.Pool:
-    if _pool is None:
-        raise RuntimeError("Pool não inicializada. Confirme que o lifespan do FastAPI rodou init_pool().")
+    if _pool is None: raise RuntimeError("Pool não inicializada. Confirme que o lifespan do FastAPI rodou init_pool().")
     return _pool

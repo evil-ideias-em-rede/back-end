@@ -1,6 +1,6 @@
 from typing import Optional
-from langgraph.prebuilt.tool_node import ToolNode
 from langgraph.graph import MessagesState
+from langgraph.prebuilt.tool_node import ToolNode
 from langgraph.graph import END, START, StateGraph
 
 from .agent.brain_stom_node import brain_storm_node
@@ -8,8 +8,31 @@ from .agent.debate_outline_node import debate_outline_node
 from .agent.generic_activity_node import generic_activity_node
 from .agent.lesson_plan_node import lesson_plan_node
 from .agent.political_leteracy_node import political_leteracy_node
-from .router_state import router_state
 from .tools.sandbox.execute_bash import execute_bash
+
+
+AGENT_NAMES = {
+    "brainstorm": "brainstorm_node",
+    "lesson_plan": "lesson_plan_node",
+    "debate_outline": "debate_outline_node",
+    "political_leteracy": "political_leteracy_node",
+    "generic_activity": "generic_activity_node",
+}
+
+
+def resolve_agent_name(agent_name: str) -> str:
+    normalized = agent_name.strip().lower()
+    try: return AGENT_NAMES[normalized]
+    except KeyError as exc:
+        supported = "brainstorm, lesson_plan, debate, political_leteracy, generic"
+        raise ValueError(f"agent_name inválido. Use um destes valores: {supported}") from exc
+
+
+def router_state(state) -> dict:
+    requested_agent = state.get("agent_name")
+    if not requested_agent: raise ValueError("agent_name é obrigatório para selecionar o agente")
+    selected = resolve_agent_name(requested_agent)
+    return {"selected_agent": selected, "next_node": selected}
 
 
 class ChatGraphState(MessagesState):
@@ -37,36 +60,25 @@ def route_to_agent(state):
 
 
 def route_after_agent(state):
-    """Decide entre finalizar ou enviar as chamadas para o nó de tools."""
     last_message = state["messages"][-1]
     tool_calls = getattr(last_message, "tool_calls", None) or []
-    if not tool_calls:
-        return "end"
+    if not tool_calls: return "end"
     return "tools"
 
 
 AGENT_NODES = {
-    "brain_storm_node": "brain_storm_node",
+    "brainstorm_node": "brainstorm_node",
     "lesson_plan_node": "lesson_plan_node",
     "debate_outline_node": "debate_outline_node",
     "political_leteracy_node": "political_leteracy_node",
     "generic_activity_node": "generic_activity_node",
 }
 
+
 graph.add_conditional_edges("router", route_to_agent, AGENT_NODES)
 for node_name in AGENT_NODES:
-    graph.add_conditional_edges(
-        node_name,
-        route_after_agent,
-        {
-            "tools": "tools",
-            "end": END,
-        },
-    )
+    graph.add_conditional_edges(node_name, route_after_agent, {"tools": "tools", "end": END,},)
+
 
 graph.add_conditional_edges("tools", route_to_agent, AGENT_NODES)
-
-# O fluxo executa agente -> tools -> agente até o agente responder sem novas
-# chamadas de ferramenta. O recursion_limit do LangGraph continua protegendo
-# contra loops infinitos.
 GRAPH_BUILDER = graph.compile()

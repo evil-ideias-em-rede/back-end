@@ -1,5 +1,3 @@
-"""Formata o planning.json de um workspace sem alterar seu conteúdo."""
-
 import json
 from pathlib import Path
 

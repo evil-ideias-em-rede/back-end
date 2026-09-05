@@ -1,10 +1,10 @@
-from fastapi import APIRouter, HTTPException, status
-
-from auth.google_auth import verify_google_token
-from auth.jwt_utils import create_access_token
 from db.pool import get_pool
+from auth.jwt_utils import create_access_token
+from auth.google_auth import verify_google_token
 from db.queries import get_or_create_user_by_google
 from schemas import GoogleLoginIn, LoginOut
+from fastapi import APIRouter, HTTPException, status
+
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 

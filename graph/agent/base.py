@@ -1,16 +1,17 @@
-"""Execução comum de todos os agentes.
-
-Cada agente recebe o mesmo contrato: pode chamar somente ``execute_bash`` e,
-quando terminar, devolve uma única mensagem para o grafo. Assim não há uma
-cadeia de agentes nem uma segunda escolha depois do roteamento.
-"""
-
 from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
 
-from config.model import get_chat_model
 from graph.tools.sandbox.execute_bash import execute_bash
 from graph.tools.sandbox.workdir import workspace_for_chat
+
+import os
+from functools import lru_cache
+from langchain_openai import ChatOpenAI
+
+
+@lru_cache(maxsize=1)
+def get_chat_model() -> ChatOpenAI:
+    return ChatOpenAI(model=os.getenv("OPENAI_MODEL_NAME", "gpt-5.6-luna"), use_responses_api=True,)
 
 
 def _safe_config(state, config: RunnableConfig | None) -> RunnableConfig:
