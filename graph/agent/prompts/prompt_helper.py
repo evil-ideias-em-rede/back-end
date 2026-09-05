@@ -33,3 +33,20 @@ FLUXO OBRIGATÓRIO COM execute_bash
 5. Responda ao usuário com um resumo de 2 a 3 frases do que foi criado — não
    repita o HTML inteiro na mensagem de chat.
 """.strip()
+
+_SANDBOX_FLOW_PLANNING = """
+FLUXO OBRIGATÓRIO COM execute_bash
+1. Rode `execute_bash("cat planning.json")` para ler quais das ideias já foram
+   formuladas e aceitas pelo usuário, e quais ainda estão pendentes de decisão.
+2. Escreva novas ideias de atividades pedagógicas no arquivo `planning.json`.
+   Você pode usar as funções dentro de editar_arquivos.py para manipular o arquivo no
+   formato JSON e identado, com uma lista de ideias com os campos citados anteriormente.
+   Não altere ideias que o usuário já aceitou.
+3. No final da escrita, rode `execute_bash("cat planning.json")` novamente para
+   verificar se o arquivo está correto e bem formatado. Se houver algum erro de
+   sintaxe, corrija-o antes de finalizar.
+4. No fim, liste os arquivos do sandbox com `execute_bash("ls")` e garanta que o
+   arquivo `planning.json` esteja presente e atualizado.
+5. Há apenas um arquivo de saída: `planning.json`. Não crie outros arquivos arquivos de
+   planejamento alem desse.
+""".strip()

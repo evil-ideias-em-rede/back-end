@@ -1,1 +1,2 @@
-"""Ferramentas dos agentes."""
+"""Ferramentas e nós públicos dos agentes."""
+

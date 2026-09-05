@@ -4,6 +4,14 @@ from .workdir import _extrai_sandbox_dir
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from .config_sandbox import _montar_comando_sandboxed
+from .format_planning import format_planning_file
+from langgraph.prebuilt import ToolNode
+
+def _format_warning(work_dir: str) -> str:
+    error = format_planning_file(work_dir)
+    if error:
+        return f"\nNão foi possível formatar planning.json automaticamente: {error}"
+    return ""
 
 
 @tool
@@ -63,10 +71,11 @@ async def execute_bash(comando: str, config: RunnableConfig) -> str:
         except asyncio.TimeoutError:
             processo.kill()
             await processo.communicate()
+            warning = _format_warning(work_dir)
             return json.dumps(
                 {
                     "stdout": "",
-                    "stderr": "Comando excedeu o tempo limite (120s)",
+                    "stderr": "Comando excedeu o tempo limite (120s)" + warning,
                     "returncode": -1,
                     "sucesso": False,
                 },
@@ -75,7 +84,7 @@ async def execute_bash(comando: str, config: RunnableConfig) -> str:
 
         resultado = {
             "stdout": stdout.decode("utf-8", errors="replace"),
-            "stderr": stderr.decode("utf-8", errors="replace"),
+            "stderr": stderr.decode("utf-8", errors="replace") + _format_warning(work_dir),
             "returncode": processo.returncode,
             "sucesso": processo.returncode == 0
         }

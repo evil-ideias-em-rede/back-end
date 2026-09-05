@@ -14,9 +14,7 @@ BANCO_PADRAO = Path(__file__).resolve().parents[1] / "datasets" / "deputados.sql
 
 
 def obter_schema(conexao):
-    tabelas = conexao.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
-    ).fetchall()
+    tabelas = conexao.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").fetchall()
     partes = []
     for (tabela,) in tabelas:
         colunas = conexao.execute(f'PRAGMA table_info("{tabela}")').fetchall()

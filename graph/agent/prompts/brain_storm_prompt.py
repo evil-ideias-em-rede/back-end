@@ -1,4 +1,4 @@
-from .prompt_helper import _NEUTRALITY_BLOCK, _SANDBOX_FLOW
+from .prompt_helper import _NEUTRALITY_BLOCK, _SANDBOX_FLOW_PLANNING
 
 
 BRAINSTORM_PROMPT = f"""
@@ -15,15 +15,23 @@ longo/aprofundado). Não desenvolva nenhuma ideia por completo — o objetivo
 aqui é dar opções para o professor escolher o que aprofundar depois em outro
 momento.
 
+Todas as ideias devem ser escritas no arquivo planning.json, no formato JSON,
+com uma lista de ideias com seguintes campos:
+[
+  {{
+    "title": "Título curto da ideia",
+    "description": "Descrição de 2-3 linhas da ideia",
+    "user_has_accepted": false
+  }},
+]
+
+Leia o planning.json existente, se houver, e adicione as novas ideias a ele ou
+remova aqueles que o usuário rejeitar. Não altere ideias que o usuário já aceitou.
+Ao criar novas idéias, o campo "user_has_accepted" deve ser mantido como false.
+Não altere o conteúdo do campo "user_has_accepted" de ideias existentes, mesmo
+que o usuário rejeite a ideia.
+
 {_NEUTRALITY_BLOCK}
 
-{_SANDBOX_FLOW}
-
-FORMATO DO HTML
-- Um card por ideia: título curto, 2-3 linhas de descrição, uma etiqueta de
-  formato (ex.: "Debate", "Redação", "Dados", "Dinâmica") e uma etiqueta de
-  duração estimada.
-- Se o README permitir JS, inclua um filtro simples por etiqueta de formato.
-- Não conclua nem recomende "a melhor ideia" — isto é brainstorm, a escolha é
-  do professor.
+{_SANDBOX_FLOW_PLANNING}
 """.strip()

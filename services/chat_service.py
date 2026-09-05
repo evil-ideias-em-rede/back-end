@@ -19,7 +19,7 @@ async def run_chat_turn(
     chat_messages: list,
     context: str | None,
     user_input: str,
-    agent_name: str | None = None,
+    agent_name: str,
 ) -> str:
     """
     Recebe o histórico já carregado e validado (dono do chat conferido antes

@@ -12,5 +12,5 @@ def get_chat_model() -> ChatOpenAI:
     """Cria o cliente apenas quando um turno de agente for executado."""
     return ChatOpenAI(
         model=OPENAI_MODEL_NAME,
-        temperature=float(os.getenv("OPENAI_TEMPERATURE", "0.7")),
+        use_responses_api=True,
     )

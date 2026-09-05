@@ -1,0 +1,35 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    # O UID/GID precisam ter permissão de escrita no bind mount workdirs.
+    # Altere BACKEND_UID/BACKEND_GID ao usar outro usuário no host.
+    user: "${BACKEND_UID:-1000}:${BACKEND_GID:-1000}"
+    ports:
+      - "127.0.0.1:8000:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./workdirs:/app/workdirs
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=128m
+      - /run:rw,noexec,nosuid,nodev,size=16m
+    cap_drop:
+      - ALL
+    # Necessário apenas para o namespace interno do bubblewrap. A capacidade
+    # fica somente no bounding set; o processo continua sem privilégios
+    # efetivos e o bwrap descarta todas as capacidades no sandbox.
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - no-new-privileges:true
+      - seccomp:unconfined
+      - apparmor:unconfined
+    pids_limit: 256
+    mem_limit: 1g
+    cpus: 2.0
+    init: true

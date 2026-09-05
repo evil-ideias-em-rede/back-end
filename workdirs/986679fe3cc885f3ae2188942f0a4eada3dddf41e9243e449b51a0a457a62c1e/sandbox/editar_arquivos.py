@@ -24,9 +24,7 @@ def _resolver_caminho(sandbox_dir: str, caminho: str) -> Path:
 
 
 @tool
-async def visualizar_arquivo(
-    caminho: str, config: RunnableConfig, intervalo_linhas: list[int] | None = None
-) -> str:
+async def visualizar_arquivo(caminho: str, config: RunnableConfig, intervalo_linhas: list[int] | None = None) -> str:
     """
     Mostra o conteúdo de um arquivo de texto do sandbox, numerando as linhas, ou lista os
     arquivos de um diretório. Use SEMPRE antes de `editar_arquivo`, para conferir o texto

@@ -41,7 +41,7 @@ class SendMessageIn(BaseModel):
     # compatibilidade com clientes antigos; ``inout`` cobre o typo usado na
     # primeira integração do botão.
     text: str = Field(validation_alias=AliasChoices("input", "text", "inout"))
-    agent_name: Optional[str] = None
+    agent_name: str
 
 
 class SendMessageOut(BaseModel):

@@ -1,11 +1,3 @@
-"""Executa um prompt contra o grafo sem precisar subir o FastAPI.
-
-Exemplos:
-    python3 test_agent.py "Crie uma atividade sobre democracia"
-    python3 test_agent.py --user-id usuario-1 --chat-id chat-1 "Faça um plano de aula"
-    python3 test_agent.py
-"""
-
 import argparse
 import asyncio
 import sys
@@ -31,7 +23,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--agent-name",
-        default=None,
+        default="generic",
         help="Agente: brainstorm, lesson_plan, debate, political_leteracy ou generic",
     )
     return parser.parse_args()
@@ -62,7 +54,7 @@ def main() -> int:
         print("Erro: informe um prompt.", file=sys.stderr)
         return 2
 
-    chat_id = args.chat_id or f"teste-chat-{10}"
+    chat_id = args.chat_id or f"teste-chat-{13}"
     print(f"user_id: {args.user_id}")
     print(f"chat_id:  {chat_id}")
     print("\nResposta do agente:\n")

@@ -80,14 +80,13 @@ async def send_message(chat_id: str, body: SendMessageIn, user: CurrentUser = De
     pool = get_pool()
     tab = await _get_owned_chat_or_404(pool, chat_id, user)
 
-    if body.agent_name:
-        try:
-            resolve_agent_name(body.agent_name)
-        except ValueError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=str(exc),
-            ) from exc
+    try:
+        resolve_agent_name(body.agent_name)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
 
     async with pool.acquire() as conn:
         rows = await get_chat_messages_by_chat_id(conn, chat_id)
