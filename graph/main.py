@@ -4,6 +4,7 @@ from langgraph.prebuilt.tool_node import ToolNode
 from langgraph.graph import END, START, StateGraph
 
 from .agent.brain_stom_node import brain_storm_node
+from .agent.specification_node import specification_node
 from .agent.debate_outline_node import debate_outline_node
 from .agent.generic_activity_node import generic_activity_node
 from .agent.lesson_plan_node import lesson_plan_node
@@ -13,9 +14,16 @@ from .tools.sandbox.execute_bash import execute_bash
 
 AGENT_NAMES = {
     "brainstorm": "brainstorm_node",
+    "specification": "specification_node",
+    # Mantém compatibilidade com o typo usado no script de teste.
+    "specfication": "specification_node",
     "lesson_plan": "lesson_plan_node",
+    "lesson-plan": "lesson_plan_node",
+    "debate": "debate_outline_node",
     "debate_outline": "debate_outline_node",
     "political_leteracy": "political_leteracy_node",
+    "political-literacy": "political_leteracy_node",
+    "generic": "generic_activity_node",
     "generic_activity": "generic_activity_node",
 }
 
@@ -24,7 +32,7 @@ def resolve_agent_name(agent_name: str) -> str:
     normalized = agent_name.strip().lower()
     try: return AGENT_NAMES[normalized]
     except KeyError as exc:
-        supported = "brainstorm, lesson_plan, debate, political_leteracy, generic"
+        supported = "brainstorm, specification, lesson_plan, debate, political_leteracy, generic"
         raise ValueError(f"agent_name inválido. Use um destes valores: {supported}") from exc
 
 
@@ -46,7 +54,8 @@ class ChatGraphState(MessagesState):
 
 graph = StateGraph(ChatGraphState)
 graph.add_node("router", router_state)
-graph.add_node("brain_storm_node", brain_storm_node)
+graph.add_node("brainstorm_node", brain_storm_node)
+graph.add_node("specification_node", specification_node)
 graph.add_node("lesson_plan_node", lesson_plan_node)
 graph.add_node("debate_outline_node", debate_outline_node)
 graph.add_node("political_leteracy_node", political_leteracy_node)
@@ -68,6 +77,7 @@ def route_after_agent(state):
 
 AGENT_NODES = {
     "brainstorm_node": "brainstorm_node",
+    "specification_node": "specification_node",
     "lesson_plan_node": "lesson_plan_node",
     "debate_outline_node": "debate_outline_node",
     "political_leteracy_node": "political_leteracy_node",

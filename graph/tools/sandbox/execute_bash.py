@@ -10,8 +10,7 @@ from langchain_core.runnables import RunnableConfig
 
 def _format_warning(work_dir: str) -> str:
     error = format_planning_file(work_dir)
-    if error: return f"\nNão foi possível formatar planning.json automaticamente: {error}"
-    return ""
+    return f"\nNão foi possível formatar planning.json automaticamente: {error}" if error else ""
 
 
 @tool
@@ -58,10 +57,7 @@ async def execute_bash(comando: str, config: RunnableConfig) -> str:
     try:
         work_dir = await _extrai_sandbox_dir(config)
     except (ValueError, RuntimeError) as e:
-        return json.dumps(
-            {"stdout": "", "stderr": str(e), "returncode": -1, "sucesso": False},
-            ensure_ascii=False,
-        )
+        return json.dumps({"stdout": "", "stderr": str(e), "returncode": -1, "sucesso": False}, ensure_ascii=False,)
     
     try:
         comando_sandbox = _montar_comando_sandboxed(comando, work_dir)

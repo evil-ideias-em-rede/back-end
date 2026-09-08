@@ -1,0 +1,106 @@
+[
+  {
+    "title": "O que é política no cotidiano?",
+    "description": "Roda de conversa introdutória para identificar decisões coletivas na escola, na família e na comunidade. Os estudantes distinguem opiniões, regras e responsabilidades públicas, praticando escuta respeitosa.",
+    "user_has_accepted": false
+  },
+  {
+    "title": "Debate sobre um problema da escola",
+    "description": "A turma escolhe um tema próximo, como uso dos espaços comuns ou organização do recreio, e debate propostas com argumentos a favor e contra. O foco é justificar ideias e considerar consequências para diferentes grupos.",
+    "user_has_accepted": false
+  },
+  {
+    "title": "Assembleia da turma",
+    "description": "Simulação curta de uma assembleia para discutir uma regra coletiva e chegar a uma decisão por votação ou consenso. Os papéis incluem mediador, participantes e relator, sem associar a atividade a partidos ou candidatos reais.",
+    "user_has_accepted": false
+  },
+  {
+    "title": "Mapa dos direitos e deveres",
+    "description": "Em grupos, os estudantes relacionam direitos e deveres presentes no cotidiano escolar e na comunidade, usando linguagem adequada à idade. Depois, apresentam exemplos e debatem por que direitos podem exigir responsabilidades compartilhadas.",
+    "user_has_accepted": false
+  },
+  {
+    "title": "Júri simulado: bem comum e interesses diferentes",
+    "description": "A turma analisa um caso fictício, como decidir entre uma praça, uma quadra ou uma área verde, ouvindo perspectivas legítimas de moradores, estudantes e gestores. O júri avalia argumentos e evidências, não pessoas ou grupos políticos reais.",
+    "user_has_accepted": false
+  },
+  {
+    "title": "Notícia, opinião ou boato?",
+    "description": "Os estudantes examinam exemplos apropriados para a faixa etária e classificam afirmações como fato verificável, opinião ou informação não confirmada. A atividade introduz checagem de fonte, data, autoria e comparação de perspectivas sem expor os alunos a conteúdo partidário inadequado.",
+    "user_has_accepted": false
+  },
+  {
+    "title": "Orçamento de uma cidade imaginária",
+    "description": "Grupos recebem um orçamento fictício e precisam priorizar áreas como saúde, educação, transporte, cultura e meio ambiente. Cada grupo apresenta sua escolha e reconhece que diferentes prioridades podem ser razoáveis quando sustentadas por argumentos.",
+    "user_has_accepted": false
+  },
+  {
+    "title": "Conselho de cidadãos mirins",
+    "description": "Atividade mais aprofundada em que os alunos investigam um problema comunitário, formulam propostas e simulam uma audiência pública. Ao final, comparam soluções, impactos e limitações, valorizando participação, diálogo e revisão de opiniões.",
+    "user_has_accepted": false
+  },
+  {
+    "title": "Linha do tempo da cidadania",
+    "description": "Em grupos, os estudantes organizam acontecimentos e documentos que ampliaram direitos no Brasil e em outros contextos, consultando fontes institucionais e históricas. A proposta é introdutória e destaca avanços, conflitos e diferentes interpretações sem transformar a atividade em narrativa partidária.",
+    "user_has_accepted": false
+  },
+  {
+    "title": "Análise de dados sobre participação",
+    "description": "A turma interpreta gráficos e tabelas públicos sobre participação eleitoral, associativismo ou acesso a serviços, verificando período, fonte e limites dos dados. Os grupos formulam hipóteses distintas e distinguem correlação de causalidade.",
+    "user_has_accepted": false
+  },
+  {
+    "title": "Estudo de caso: direito em conflito",
+    "description": "Os alunos analisam um caso fictício em que dois direitos ou interesses coletivos entram em tensão, como privacidade e segurança ou mobilidade e preservação ambiental. Devem comparar pelo menos duas soluções razoáveis e justificar critérios de decisão.",
+    "user_has_accepted": false
+  },
+  {
+    "title": "Mapa de atores e interesses",
+    "description": "A partir de um problema comunitário, cada grupo identifica pessoas, instituições e coletivos afetados, representando interesses, responsabilidades e possíveis alianças. A atividade ajuda a perceber que políticas públicas envolvem perspectivas diversas e efeitos desiguais.",
+    "user_has_accepted": false
+  },
+  {
+    "title": "Simulação de audiência pública",
+    "description": "Os estudantes assumem papéis de moradores, especialistas, usuários e gestores em uma audiência sobre uma obra ou política fictícia. Depois de ouvir argumentos e evidências de lados diferentes, elaboram um registro equilibrado de consensos, divergências e perguntas em aberto.",
+    "user_has_accepted": false
+  },
+  {
+    "title": "Oficina de checagem de fontes",
+    "description": "Em duplas, os alunos comparam uma afirmação sobre tema público em diferentes fontes, observando autoria, data, evidências, linguagem e possíveis omissões. O produto final é uma ficha curta que separa informação confirmada, dúvida e opinião.",
+    "user_has_accepted": false
+  },
+  {
+    "title": "Carta argumentativa para uma instituição",
+    "description": "Após pesquisar um problema da comunidade, cada estudante redige uma carta dirigida a uma instituição responsável, apresentando diagnóstico, proposta, evidências e possíveis efeitos positivos e negativos. A revisão entre pares verifica clareza, respeito e equilíbrio argumentativo.",
+    "user_has_accepted": false
+  },
+  {
+    "title": "Comparação de formas de participação",
+    "description": "Em uma atividade mais aprofundada, a turma compara voto, consulta pública, conselho, abaixo-assinado, manifestação e participação digital, discutindo potencialidades e limites de cada mecanismo. Os alunos relacionam cada forma a situações concretas e avaliam critérios de inclusão e representatividade.",
+    "user_has_accepted": false
+  },
+  {
+    "title": "Quem cuida do quê?",
+    "description": "Jogo de associação entre problemas do cotidiano e diferentes responsabilidades públicas, como escola, município e comunidade. A turma discute por que algumas decisões são coletivas e como os cidadãos podem participar.",
+    "long_description": "Abordagem introdutória, adequada ao 6º ano, para diferenciar vida privada, convivência coletiva e atuação do poder público sem começar por disputas partidárias. As equipes recebem situações fictícias — transporte, praça, limpeza, escola e segurança — e levantam perguntas sobre responsabilidades, direitos, deveres e formas de participação. O professor pode apresentar noções básicas de município, estado e União com exemplos simples, verificando informações em fontes institucionais como o portal da Câmara dos Deputados e o Estatuto da Criança e do Adolescente (Lei nº 8.069/1990).",
+    "user_has_accepted": false
+  },
+  {
+    "title": "Regras justas para todos",
+    "description": "Dinâmica em grupos para criar regras de convivência para uma escola ou comunidade imaginária, considerando diferentes necessidades. Os alunos comparam propostas e identificam critérios de justiça, inclusão e responsabilidade.",
+    "long_description": "A atividade parte de situações próximas aos estudantes e evita apresentar uma solução única como correta. Cada grupo recebe perfis fictícios com necessidades diferentes e propõe regras, justificando quem será beneficiado, quem poderá enfrentar dificuldades e como a regra poderia ser revisada. Na socialização, a turma compara igualdade, equidade, liberdade e bem comum em linguagem acessível, praticando escuta, negociação e argumentação respeitosa.",
+    "user_has_accepted": false
+  },
+  {
+    "title": "Câmara mirim da comunidade",
+    "description": "Simulação de uma reunião pública sobre um problema fictício do bairro, com falas breves de moradores, estudantes e representantes de serviços. Depois, a turma registra acordos, divergências e perguntas que ainda precisam de investigação.",
+    "long_description": "Formato de simulação, com papéis distribuídos de maneira equilibrada e sem usar candidatos ou partidos reais. O caso pode envolver a escolha entre melhorar uma praça, criar uma biblioteca comunitária ou ampliar uma área esportiva; cada alternativa deve ter benefícios e limites plausíveis. O objetivo é compreender representação, negociação e decisão coletiva, distinguindo opinião de evidência e reconhecendo que uma política pode produzir efeitos diferentes para grupos diferentes.",
+    "user_has_accepted": false
+  },
+  {
+    "title": "Detetives da informação pública",
+    "description": "Em duplas, os estudantes investigam uma afirmação simples sobre a cidade ou a escola e classificam o que é fato, opinião ou dúvida. Eles conferem autoria, data e fonte antes de apresentar conclusões provisórias.",
+    "long_description": "Proposta de alfabetização midiática adequada ao 6º ano, usando textos curtos, gráficos simples ou comunicados institucionais previamente selecionados pelo professor. Os alunos comparam pelo menos duas fontes e aprendem a perguntar quem publicou, quando, com quais evidências e o que ficou de fora. A atividade deve enfatizar que não confirmar uma informação não significa automaticamente que ela seja falsa; quando os dados forem insuficientes, a conclusão deve permanecer como dúvida. Podem ser consultados canais oficiais de órgãos públicos e instituições de pesquisa, sempre verificando a fonte original.",
+    "user_has_accepted": false
+  }
+]

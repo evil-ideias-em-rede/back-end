@@ -25,8 +25,7 @@ corretas para que essa conversão, quando acontecer, não distorça nada.
 
 1. Manipule o HTML completo no arquivo HTML.html.
 2. Rode `ls -la HTML.html` para confirmar que o arquivo existe e tem tamanho > 0.
-3. Não tente instalar nada nem chamar ferramentas de conversão — o entregável é o
-`.html` em si.
+3. Não tente instalar nada nem chamar ferramentas de conversão — o entregável é o `.html` em si.
 4. Você pode consultar as bibliotecas existentes para lhe auxiliar no visual.
 
 ## Estrutura de página obrigatória
