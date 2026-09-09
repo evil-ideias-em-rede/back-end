@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ateliê de agentes</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div class="brand-mark">A</div>
+        <div>
+          <p class="eyebrow">ATELIÊ DE AGENTES</p>
+          <h1>Transforme uma ideia em uma atividade</h1>
+        </div>
+        <button class="new-session" id="new-session" type="button">Nova sessão</button>
+      </header>
+
+      <section class="progress" aria-label="Etapas do fluxo">
+        <div class="progress-step active" data-step="0"><span>1</span><strong>Brainstorm</strong></div>
+        <div class="progress-line"></div>
+        <div class="progress-step" data-step="1"><span>2</span><strong>Especificação</strong></div>
+        <div class="progress-line"></div>
+        <div class="progress-step" data-step="2"><span>3</span><strong>Agente final</strong></div>
+      </section>
+
+      <section class="workspace">
+        <div class="main-card">
+          <div class="step-copy" id="step-copy"></div>
+          <div id="step-content"></div>
+          <p class="error-message" id="error-message" role="alert"></p>
+        </div>
+
+        <aside class="memory-card">
+          <div class="memory-heading">
+            <div>
+              <p class="eyebrow">BANCO EM MEMÓRIA</p>
+              <h2>Rascunho da sessão</h2>
+            </div>
+            <span class="online-dot" title="Sessão em memória"></span>
+          </div>
+          <p class="memory-note">Tudo que você escreve e cada resposta dos agentes ficam registrados enquanto o servidor estiver ativo.</p>
+          <div class="history" id="history">
+            <p class="empty-history">A conversa aparecerá aqui.</p>
+          </div>
+        </aside>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>

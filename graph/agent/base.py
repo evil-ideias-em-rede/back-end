@@ -8,7 +8,12 @@ import os
 from dotenv import load_dotenv
 from functools import lru_cache
 from langchain_openai import ChatOpenAI
-load_dotenv(override=True)
+from dotenv import load_dotenv
+
+
+# Carrega a configuração quando o agente é usado diretamente (por exemplo,
+# via `python test_agent.py`), sem depender de um servidor carregar o `.env`.
+load_dotenv(override=False)
 
 
 @lru_cache(maxsize=1)
