@@ -32,19 +32,24 @@
           <p class="error-message" id="error-message" role="alert"></p>
         </div>
 
-        <aside class="memory-card">
-          <div class="memory-heading">
+        <aside class="preview-card" id="html-preview-card" hidden>
+          <div class="preview-heading">
             <div>
-              <p class="eyebrow">BANCO EM MEMÓRIA</p>
-              <h2>Rascunho da sessão</h2>
+              <p class="eyebrow">DOCUMENTO ATUAL</p>
+              <h2>HTML.html</h2>
             </div>
-            <span class="online-dot" title="Sessão em memória"></span>
+            <a id="html-open-link" href="#" target="_blank" rel="noopener">Abrir</a>
           </div>
-          <p class="memory-note">Tudo que você escreve e cada resposta dos agentes ficam registrados enquanto o servidor estiver ativo.</p>
-          <div class="history" id="history">
-            <p class="empty-history">A conversa aparecerá aqui.</p>
+          <iframe id="html-preview" title="Pré-visualização do HTML gerado"></iframe>
+          <div class="html-edit-panel" id="html-edit-panel" hidden>
+            <p class="selected-html-target">Melhorias selecionadas</p>
+            <p id="selected-html-target"></p>
+            <textarea id="html-edit-input" placeholder="Escreva o que você quer melhorar nesta seção..."></textarea>
+            <div class="attachment-row"><button class="clip-button" id="html-attach-button" type="button" title="Anexar arquivo">📎</button><span id="html-file-name"></span><input id="html-file-input" type="file" hidden /></div>
+            <button class="primary-button" id="html-edit-submit" type="button">Enviar todas as melhorias ↑</button>
           </div>
         </aside>
+
       </section>
     </main>
     <script src="/app.js"></script>
