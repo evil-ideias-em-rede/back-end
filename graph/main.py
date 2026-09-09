@@ -46,7 +46,7 @@ class ChatGraphState(MessagesState):
 
 graph = StateGraph(ChatGraphState)
 graph.add_node("router", router_state)
-graph.add_node("brain_storm_node", brain_storm_node)
+graph.add_node("brainstorm_node", brain_storm_node)
 graph.add_node("lesson_plan_node", lesson_plan_node)
 graph.add_node("debate_outline_node", debate_outline_node)
 graph.add_node("political_leteracy_node", political_leteracy_node)

@@ -2,7 +2,9 @@ import os
 from google.oauth2 import id_token
 from google.auth.transport import requests as grequests
 
+
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+
 
 def verify_google_token(token: str) -> dict:
     """

@@ -98,7 +98,7 @@ async def execute_bash(comando: str, config: RunnableConfig) -> str:
             ensure_ascii=False,
         )
 
-
+'''
 if __name__ == "__main__":
     from langchain_core.messages import HumanMessage, ToolMessage
     from langchain_core.tools import tool
@@ -174,4 +174,4 @@ if __name__ == "__main__":
                     mensagens.append(ToolMessage(content=resultado, tool_call_id=chamada["id"],))
 
     asyncio.run(conversar_com_llm())
-    
+'''

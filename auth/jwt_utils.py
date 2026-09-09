@@ -1,6 +1,10 @@
-import jwt
+import jwt, os
 from datetime import datetime, timedelta, timezone
-from config import JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRE_MINUTES
+
+
+JWT_SECRET = os.getenv("JWT_SECRET")
+JWT_ALGORITHM = os.getenv("JWT_ALGORITHM")
+JWT_EXPIRE_MINUTES = os.getenv("JWT_EXPIRE_MINUTES")
 
 
 def create_access_token(*, user_id: str, google_id: str) -> str:

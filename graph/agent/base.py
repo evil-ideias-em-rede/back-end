@@ -5,8 +5,10 @@ from graph.tools.sandbox.execute_bash import execute_bash
 from graph.tools.sandbox.workdir import workspace_for_chat
 
 import os
+from dotenv import load_dotenv
 from functools import lru_cache
 from langchain_openai import ChatOpenAI
+load_dotenv(override=True)
 
 
 @lru_cache(maxsize=1)
