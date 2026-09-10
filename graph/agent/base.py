@@ -36,19 +36,26 @@ def _safe_config(state, config: RunnableConfig | None) -> RunnableConfig:
     return {**(config or {}), "configurable": configured}
 
 
-async def run_agent(state, system_prompt: str, config: RunnableConfig | None = None) -> dict:
+async def run_agent(
+    state,
+    system_prompt: str,
+    config: RunnableConfig | None = None,
+    tools: list | None = None,
+) -> dict:
     """Executa uma rodada do agente em streaming; o grafo decide se chama as ferramentas."""
     safe_config = _safe_config(state, config)
     system_text = system_prompt
     if state.get("context"):
         system_text += f"\n\nContexto persistido deste chat:\n{state['context']}"
+    agent_tools = tools or [execute_bash]
+    tool_names = ", ".join(getattr(agent_tool, "name", "ferramenta") for agent_tool in agent_tools)
     system_text += (
-        "\n\nVocê tem exatamente uma ferramenta: execute_bash. "
-        "Use-a somente no workspace /workspace. Quando concluir, responda ao usuário."
+        f"\n\nVocê tem exatamente estas ferramentas: {tool_names}. "
+        "Use-as somente conforme suas descrições. Quando concluir, responda ao usuário."
     )
 
     messages = [SystemMessage(content=system_text), *state.get("messages", [])]
-    model = get_chat_model().bind_tools([execute_bash])
+    model = get_chat_model().bind_tools(agent_tools)
     response = None
     async for chunk in model.astream(messages, config=safe_config):
         response = chunk if response is None else response + chunk

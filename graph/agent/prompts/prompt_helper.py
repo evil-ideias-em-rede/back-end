@@ -39,8 +39,8 @@ FLUXO OBRIGATÓRIO COM execute_bash
 1. Rode `execute_bash("cat planning.json")` para ler quais das ideias já foram
    formuladas e aceitas pelo usuário, e quais ainda estão pendentes de decisão.
 2. Escreva novas ideias de atividades pedagógicas no arquivo `planning.json`.
-   Você pode usar as funções dentro de editar_arquivos.py para manipular o arquivo no
-   formato JSON e identado, com uma lista de ideias com os campos citados anteriormente.
+   Manipule diretamente esse arquivo no formato JSON identado, com uma lista de
+   ideias com os campos citados anteriormente.
    Não altere ideias que o usuário já aceitou.
 3. No final da escrita, rode `execute_bash("cat planning.json")` novamente para
    verificar se o arquivo está correto e bem formatado. Se houver algum erro de

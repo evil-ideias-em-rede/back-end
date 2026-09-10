@@ -3,8 +3,8 @@ from langgraph.graph import MessagesState
 from langgraph.prebuilt.tool_node import ToolNode
 from langgraph.graph import END, START, StateGraph
 
-from .agent.brain_stom_node import brain_storm_node
-from .agent.specification_node import specification_node
+from .agent.brain_stom_node import brain_storm_node, execute_planning_bash
+from .agent.specification_node import execute_specification_bash, specification_node
 from .agent.debate_outline_node import debate_outline_node
 from .agent.generic_activity_node import generic_activity_node
 from .agent.lesson_plan_node import lesson_plan_node
@@ -60,7 +60,10 @@ graph.add_node("lesson_plan_node", lesson_plan_node)
 graph.add_node("debate_outline_node", debate_outline_node)
 graph.add_node("political_leteracy_node", political_leteracy_node)
 graph.add_node("generic_activity_node", generic_activity_node)
-graph.add_node("tools", ToolNode([execute_bash]))
+graph.add_node(
+    "tools",
+    ToolNode([execute_bash, execute_planning_bash, execute_specification_bash]),
+)
 graph.add_edge(START, "router")
 
 

@@ -172,7 +172,7 @@ def _workflow_artifacts(session_id: str, agent_name: AgentName) -> dict:
     if agent_name == "brainstorm":
         filename = "planning.json"
     elif agent_name == "specification":
-        filename = "SPECIFICATION.md"
+        filename = "specification.json"
     elif agent_name in {"debate", "generic", "lesson_plan", "political_leteracy"}:
         filename = "HTML.html"
     else:
@@ -252,14 +252,14 @@ async def _run_streamed_message(
 
 
 def _advance_instruction(from_agent: str) -> str:
-    required_file = "planning.json" if from_agent == "brainstorm" else "SPECIFICATION.md"
+    required_file = "planning.json" if from_agent == "brainstorm" else "specification.json"
     return (
         "O usuário clicou no botão para avançar para o próximo agente. "
         "Esta é uma solicitação real do usuário e sua resposta será exibida diretamente no chat do frontend. "
         "Responda em português, de forma clara e objetiva, sem mencionar instruções internas do sistema. "
         f"Verifique se {required_file} está completo no sandbox. "
         "Para planning.json, só considere pronto quando houver exatamente uma ideia com user_has_accepted igual a true. "
-        "Para SPECIFICATION.md, só considere pronto quando houver conteúdo não vazio. "
+        "Para specification.json, só considere pronto quando houver um objeto JSON válido e não vazio. "
         f"Se não existir ou estiver incompleto, informe quais dados faltam, mas não cite nomes de arquivos. "
         f"Se houver informações suficientes, gere ou atualize {required_file}, leia o arquivo novamente, "
         "se o usuário já tiver escolhido uma ideia, marque exatamente essa ideia como aceita, "
@@ -268,7 +268,7 @@ def _advance_instruction(from_agent: str) -> str:
 
 
 def _advance_allowed(session_id: str, from_agent: str) -> bool:
-    filename = "planning.json" if from_agent == "brainstorm" else "SPECIFICATION.md"
+    filename = "planning.json" if from_agent == "brainstorm" else "specification.json"
     path = workspace_for_chat("workflow-demo-user", f"workflow-{session_id}") / "sandbox" / filename
     if from_agent == "brainstorm":
         try:
@@ -283,8 +283,9 @@ def _advance_allowed(session_id: str, from_agent: str) -> bool:
         except (OSError, UnicodeDecodeError, json.JSONDecodeError):
             return False
     try:
-        return _is_non_empty_file(path) and bool(path.read_text(encoding="utf-8").strip())
-    except (OSError, UnicodeDecodeError):
+        specification = json.loads(path.read_text(encoding="utf-8"))
+        return isinstance(specification, dict) and bool(specification)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return False
 
 
