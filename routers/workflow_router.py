@@ -1,13 +1,8 @@
 from typing import Awaitable, Callable, Literal
-import asyncio
 import json
-import os
-import subprocess
-import tempfile
 from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, WebSocket, WebSocketDisconnect, status
-from fastapi.responses import FileResponse, Response
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, status
 from langchain_core.messages import AIMessage, HumanMessage
 from pydantic import BaseModel, Field
 
@@ -48,16 +43,6 @@ class WorkflowReplyOut(BaseModel):
 
 
 router = APIRouter(prefix="/api/workflow", tags=["workflow"])
-MAX_UPLOAD_BYTES = 20 * 1024 * 1024
-MAX_PDF_HTML_BYTES = 20 * 1024 * 1024
-PDF_PRINT_OVERRIDES = """
-<style id="workflow-pdf-overrides">
-@media print {
-  .pagina > .nota { display: none !important; }
-  .pagina > .secao { break-inside: avoid; page-break-inside: avoid; }
-}
-</style>
-"""
 
 
 def _history(rows: list[dict]) -> list:
@@ -103,8 +88,6 @@ class _ToolOutputPrefixFilter:
         while True:
             marker_start = self._buffer.find(marker)
             if marker_start < 0:
-                # Conserva apenas o fim, pois o marcador pode ser dividido entre
-                # dois chunks da LLM.
                 keep = len(marker) - 1
                 if len(self._buffer) <= keep:
                     break
@@ -118,7 +101,6 @@ class _ToolOutputPrefixFilter:
             try:
                 value, end = json.JSONDecoder().raw_decode(candidate)
             except json.JSONDecodeError:
-                # Ainda não recebemos o JSON inteiro; aguarda o próximo token.
                 self._buffer = candidate
                 break
 
@@ -161,23 +143,6 @@ def _is_non_empty_file(path: Path) -> bool:
         return path.is_file() and path.stat().st_size > 0
     except OSError:
         return False
-
-
-def _require_non_empty_file(path: Path, filename: str) -> None:
-    if not _is_non_empty_file(path):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"{filename} não existe ou está vazio",
-        )
-
-
-def _html_for_pdf(html_content: bytes) -> bytes:
-    """Adiciona somente ajustes de impressão, preservando o HTML do front."""
-    html = html_content.decode("utf-8", errors="replace")
-    head_end = html.lower().find("</head>")
-    if head_end < 0:
-        return f"{PDF_PRINT_OVERRIDES}{html}".encode("utf-8")
-    return f"{html[:head_end]}{PDF_PRINT_OVERRIDES}{html[head_end:]}".encode("utf-8")
 
 
 def _graph_config(session_id: str) -> dict:
@@ -342,129 +307,6 @@ async def create_workflow_session():
 @router.get("/sessions/{session_id}", response_model=WorkflowSessionOut)
 async def get_workflow_session(session_id: str):
     return _session_or_404(session_id)
-
-
-@router.get("/sessions/{session_id}/html")
-async def get_workflow_html(session_id: str):
-    """Entrega o HTML produzido no sandbox da sessão atual."""
-    _session_or_404(session_id)
-    html_path = workspace_for_chat("workflow-demo-user", f"workflow-{session_id}") / "sandbox" / "HTML.html"
-    _require_non_empty_file(html_path, "HTML.html")
-    return FileResponse(html_path, media_type="text/html", headers={"Cache-Control": "no-store"})
-
-
-@router.get("/sessions/{session_id}/{filename:path}")
-async def get_workflow_asset(session_id: str, filename: str):
-    """Serve imagens e outros arquivos anexados usados pelo HTML da sessão."""
-    _session_or_404(session_id)
-    relative_name = filename.removeprefix("sandbox/")
-    asset_path = (workspace_for_chat("workflow-demo-user", f"workflow-{session_id}") / "sandbox" / relative_name).resolve()
-    sandbox_dir = (workspace_for_chat("workflow-demo-user", f"workflow-{session_id}") / "sandbox").resolve()
-    try:
-        asset_path.relative_to(sandbox_dir)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail="Arquivo não encontrado") from exc
-    _require_non_empty_file(asset_path, relative_name)
-    return FileResponse(asset_path, headers={"Cache-Control": "no-store"})
-
-
-@router.post("/sessions/{session_id}/files")
-async def upload_workflow_file(session_id: str, file: UploadFile = File(...)):
-    """Salva um anexo no sandbox da sessão para o agente poder acessá-lo."""
-    _session_or_404(session_id)
-    filename = Path(file.filename or "").name
-    if not filename or filename in {".", ".."}:
-        raise HTTPException(status_code=400, detail="Nome de arquivo inválido")
-
-    sandbox_dir = workspace_for_chat("workflow-demo-user", f"workflow-{session_id}") / "sandbox"
-    sandbox_dir.mkdir(parents=True, exist_ok=True)
-    target = sandbox_dir / filename
-    content = await file.read(MAX_UPLOAD_BYTES + 1)
-    if len(content) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail="O arquivo deve ter no máximo 20 MB")
-    target.write_bytes(content)
-    return {"filename": filename, "sandbox_path": f"sandbox/{filename}", "size": len(content)}
-
-
-@router.post("/sessions/{session_id}/pdf")
-async def generate_workflow_pdf(session_id: str, file: UploadFile = File(...)):
-    """Converte o HTML enviado pelo frontend em PDF e devolve o arquivo."""
-    _session_or_404(session_id)
-    html_content = await file.read(MAX_PDF_HTML_BYTES + 1)
-    if len(html_content) > MAX_PDF_HTML_BYTES:
-        raise HTTPException(status_code=413, detail="O HTML deve ter no máximo 20 MB")
-    if not html_content.strip():
-        raise HTTPException(status_code=422, detail="O HTML não pode estar vazio")
-
-    sandbox_dir = workspace_for_chat("workflow-demo-user", f"workflow-{session_id}") / "sandbox"
-    sandbox_dir.mkdir(parents=True, exist_ok=True)
-    html_path = None
-    pdf_path = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="wb",
-            suffix=".html",
-            prefix="pdf-source-",
-            dir=sandbox_dir,
-            delete=False,
-        ) as html_file:
-            html_file.write(_html_for_pdf(html_content))
-            html_path = Path(html_file.name)
-
-        with tempfile.NamedTemporaryFile(suffix=".pdf", prefix="workflow-", delete=False) as pdf_file:
-            pdf_path = Path(pdf_file.name)
-        # O Chromium precisa de um perfil próprio e gravável mesmo em modo headless.
-        with tempfile.TemporaryDirectory(prefix="chromium-profile-", dir=sandbox_dir) as profile_dir:
-            profile_path = Path(profile_dir)
-            config_dir = profile_path / "config"
-            cache_dir = profile_path / "cache"
-            config_dir.mkdir()
-            cache_dir.mkdir()
-            process_env = os.environ.copy()
-            process_env.update(
-                {
-                    "XDG_CONFIG_HOME": str(config_dir),
-                    "XDG_CACHE_HOME": str(cache_dir),
-                }
-            )
-            result = await asyncio.to_thread(
-                subprocess.run,
-                [
-                    "chromium",
-                    "--headless",
-                    "--no-sandbox",
-                    "--disable-gpu",
-                    "--disable-dev-shm-usage",
-                    "--allow-file-access-from-files",
-                    f"--user-data-dir={profile_dir}",
-                    f"--print-to-pdf={pdf_path}",
-                    str(html_path),
-                ],
-                capture_output=True,
-                env=process_env,
-                timeout=120,
-                check=False,
-            )
-        if result.returncode != 0 or not pdf_path.is_file() or pdf_path.stat().st_size == 0:
-            detail = result.stderr.decode("utf-8", errors="replace").strip()
-            raise HTTPException(status_code=502, detail=detail or "Não foi possível gerar o PDF")
-
-        pdf_content = pdf_path.read_bytes()
-    except subprocess.TimeoutExpired as exc:
-        raise HTTPException(status_code=504, detail="A geração do PDF excedeu o tempo limite") from exc
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=503, detail="O conversor de PDF não está disponível") from exc
-    finally:
-        if html_path:
-            html_path.unlink(missing_ok=True)
-        if pdf_path:
-            pdf_path.unlink(missing_ok=True)
-
-    return Response(
-        content=pdf_content,
-        media_type="application/pdf",
-        headers={"Content-Disposition": 'attachment; filename="atividade.pdf"'},
-    )
 
 
 @router.websocket("/sessions/{session_id}/ws")
