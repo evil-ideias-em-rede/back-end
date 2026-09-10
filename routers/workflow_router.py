@@ -1,9 +1,13 @@
-from typing import Literal
+from typing import Awaitable, Callable, Literal
+import asyncio
 import json
+import os
+import subprocess
+import tempfile
 from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, File, HTTPException, UploadFile, WebSocket, WebSocketDisconnect, status
+from fastapi.responses import FileResponse, Response
 from langchain_core.messages import AIMessage, HumanMessage
 from pydantic import BaseModel, Field
 
@@ -45,6 +49,15 @@ class WorkflowReplyOut(BaseModel):
 
 router = APIRouter(prefix="/api/workflow", tags=["workflow"])
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
+MAX_PDF_HTML_BYTES = 20 * 1024 * 1024
+PDF_PRINT_OVERRIDES = """
+<style id="workflow-pdf-overrides">
+@media print {
+  .pagina > .nota { display: none !important; }
+  .pagina > .secao { break-inside: avoid; page-break-inside: avoid; }
+}
+</style>
+"""
 
 
 def _history(rows: list[dict]) -> list:
@@ -53,6 +66,8 @@ def _history(rows: list[dict]) -> list:
 
 
 def _message_text(content) -> str:
+    if content is None:
+        return ""
     if isinstance(content, str):
         return content
     if isinstance(content, list):
@@ -62,9 +77,73 @@ def _message_text(content) -> str:
                 parts.append(item)
             elif isinstance(item, dict) and item.get("type") in {"text", "output_text"}:
                 parts.append(str(item.get("text", "")))
-        if parts:
-            return "\n".join(part for part in parts if part)
+        return "\n".join(part for part in parts if part)
+    if isinstance(content, dict) and content.get("type") in {"text", "output_text"}:
+        return str(content.get("text", ""))
     return str(content)
+
+
+def _is_tool_result(value) -> bool:
+    return (
+        isinstance(value, dict)
+        and {"stdout", "stderr", "returncode", "sucesso"}.issubset(value.keys())
+    )
+
+
+class _ToolOutputPrefixFilter:
+    """Remove blocos JSON técnicos do execute_bash antes de enviá-los ao chat."""
+
+    def __init__(self) -> None:
+        self._buffer = ""
+
+    def push(self, text: str) -> str:
+        self._buffer += text
+        output: list[str] = []
+        marker = '{"stdout"'
+        while True:
+            marker_start = self._buffer.find(marker)
+            if marker_start < 0:
+                # Conserva apenas o fim, pois o marcador pode ser dividido entre
+                # dois chunks da LLM.
+                keep = len(marker) - 1
+                if len(self._buffer) <= keep:
+                    break
+                output.append(self._buffer[:-keep])
+                self._buffer = self._buffer[-keep:]
+                break
+
+            if marker_start:
+                output.append(self._buffer[:marker_start])
+            candidate = self._buffer[marker_start:]
+            try:
+                value, end = json.JSONDecoder().raw_decode(candidate)
+            except json.JSONDecodeError:
+                # Ainda não recebemos o JSON inteiro; aguarda o próximo token.
+                self._buffer = candidate
+                break
+
+            if not _is_tool_result(value):
+                output.append(candidate[:1])
+                self._buffer = candidate[1:]
+                continue
+
+            self._buffer = candidate[end:]
+            if self._buffer and self._buffer[0].isspace():
+                self._buffer = self._buffer.lstrip()
+        return "".join(output)
+
+    def finish(self) -> str:
+        # Se ficou um JSON técnico incompleto, não o expõe no chat.
+        if self._buffer.lstrip().startswith('{"stdout"'):
+            return ""
+        output = self._buffer
+        self._buffer = ""
+        return output
+
+
+def _clean_agent_text(content) -> str:
+    text_filter = _ToolOutputPrefixFilter()
+    return text_filter.push(_message_text(content)) + text_filter.finish()
 
 
 def _session_or_404(session_id: str) -> dict:
@@ -75,6 +154,173 @@ def _session_or_404(session_id: str) -> dict:
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Sessão não encontrada na memória do servidor",
         ) from exc
+
+
+def _is_non_empty_file(path: Path) -> bool:
+    try:
+        return path.is_file() and path.stat().st_size > 0
+    except OSError:
+        return False
+
+
+def _require_non_empty_file(path: Path, filename: str) -> None:
+    if not _is_non_empty_file(path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"{filename} não existe ou está vazio",
+        )
+
+
+def _html_for_pdf(html_content: bytes) -> bytes:
+    """Adiciona somente ajustes de impressão, preservando o HTML do front."""
+    html = html_content.decode("utf-8", errors="replace")
+    head_end = html.lower().find("</head>")
+    if head_end < 0:
+        return f"{PDF_PRINT_OVERRIDES}{html}".encode("utf-8")
+    return f"{html[:head_end]}{PDF_PRINT_OVERRIDES}{html[head_end:]}".encode("utf-8")
+
+
+def _graph_config(session_id: str) -> dict:
+    return {
+        "configurable": {
+            "thread_id": f"workflow-{session_id}",
+            "user_id": "workflow-demo-user",
+            "work_dir": str(workspace_for_chat("workflow-demo-user", f"workflow-{session_id}")),
+        }
+    }
+
+
+def _workflow_state(session: dict, session_id: str, text: str, agent_name: AgentName) -> dict:
+    return {
+        "messages": _history(session["messages"]) + [HumanMessage(content=text)],
+        "chat_id": f"workflow-{session_id}",
+        "user_id": "workflow-demo-user",
+        "context": None,
+        "agent_name": agent_name,
+        "selected_agent": None,
+        "next_node": None,
+    }
+
+
+def _workflow_artifacts(session_id: str, agent_name: AgentName) -> dict:
+    sandbox_dir = workspace_for_chat("workflow-demo-user", f"workflow-{session_id}") / "sandbox"
+    if agent_name == "brainstorm":
+        filename = "planning.json"
+    elif agent_name == "specification":
+        filename = "SPECIFICATION.md"
+    elif agent_name in {"debate", "generic", "lesson_plan", "political_leteracy"}:
+        filename = "HTML.html"
+    else:
+        return {}
+
+    path = sandbox_dir / filename
+    if not _is_non_empty_file(path):
+        return {}
+    if filename == "HTML.html":
+        url = f"/api/workflow/sessions/{session_id}/html"
+        return {"html_url": url, "artifact_name": filename, "artifact_url": url}
+    url = f"/api/workflow/sessions/{session_id}/{filename}"
+    return {"artifact_name": filename, "artifact_url": url}
+
+
+async def _stream_graph_response(
+    state: dict,
+    config: dict,
+    emit: Callable[[dict], Awaitable[None]],
+) -> str:
+    """Executa o grafo e envia somente os deltas textuais da LLM."""
+    parts: list[str] = []
+    text_filter = _ToolOutputPrefixFilter()
+    async for item in GRAPH_BUILDER.astream(
+        state,
+        config=config,
+        stream_mode="messages",
+        version="v2",
+    ):
+        if not isinstance(item, dict) or item.get("type") != "messages":
+            continue
+        data = item.get("data")
+        if not isinstance(data, tuple) or len(data) != 2:
+            continue
+        chunk = data[0]
+        delta = _message_text(getattr(chunk, "content", ""))
+        if not delta:
+            continue
+        visible_delta = text_filter.push(delta)
+        if not visible_delta:
+            continue
+        parts.append(visible_delta)
+        await emit({"type": "token", "content": visible_delta})
+    trailing_text = text_filter.finish()
+    if trailing_text:
+        parts.append(trailing_text)
+        await emit({"type": "token", "content": trailing_text})
+    return "".join(parts)
+
+
+async def _run_streamed_message(
+    session_id: str,
+    body: WorkflowMessageIn,
+    emit: Callable[[dict], Awaitable[None]],
+) -> dict:
+    session = _session_or_404(session_id)
+    text = body.text.strip()
+    if not text:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="A mensagem não pode ficar vazia")
+
+    memory_store.add_message(session_id, role="user", content=text, agent_name=body.agent_name)
+    state = _workflow_state(session, session_id, text, body.agent_name)
+    reply_text = await _stream_graph_response(state, _graph_config(session_id), emit)
+    reply = memory_store.add_message(
+        session_id,
+        role="assistant",
+        content=reply_text,
+        agent_name=body.agent_name,
+    )
+    payload = {
+        "type": "done",
+        "session_id": session_id,
+        "message": reply,
+    }
+    payload.update(_workflow_artifacts(session_id, body.agent_name))
+    return payload
+
+
+def _advance_instruction(from_agent: str) -> str:
+    required_file = "planning.json" if from_agent == "brainstorm" else "SPECIFICATION.md"
+    return (
+        "O usuário clicou no botão para avançar para o próximo agente. "
+        "Esta é uma solicitação real do usuário e sua resposta será exibida diretamente no chat do frontend. "
+        "Responda em português, de forma clara e objetiva, sem mencionar instruções internas do sistema. "
+        f"Verifique se {required_file} está completo no sandbox. "
+        "Para planning.json, só considere pronto quando houver exatamente uma ideia com user_has_accepted igual a true. "
+        "Para SPECIFICATION.md, só considere pronto quando houver conteúdo não vazio. "
+        f"Se não existir ou estiver incompleto, informe quais dados faltam, mas não cite nomes de arquivos. "
+        f"Se houver informações suficientes, gere ou atualize {required_file}, leia o arquivo novamente, "
+        "se o usuário já tiver escolhido uma ideia, marque exatamente essa ideia como aceita, "
+        "confirme que está correto e informe ao usuário que ele pode prosseguir."
+    )
+
+
+def _advance_allowed(session_id: str, from_agent: str) -> bool:
+    filename = "planning.json" if from_agent == "brainstorm" else "SPECIFICATION.md"
+    path = workspace_for_chat("workflow-demo-user", f"workflow-{session_id}") / "sandbox" / filename
+    if from_agent == "brainstorm":
+        try:
+            planning = json.loads(path.read_text(encoding="utf-8"))
+            return (
+                isinstance(planning, list)
+                and sum(
+                    isinstance(item, dict) and item.get("user_has_accepted") is True
+                    for item in planning
+                ) == 1
+            )
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            return False
+    try:
+        return _is_non_empty_file(path) and bool(path.read_text(encoding="utf-8").strip())
+    except (OSError, UnicodeDecodeError):
+        return False
 
 
 @router.post("/sessions", response_model=WorkflowSessionOut)
@@ -103,8 +349,7 @@ async def get_workflow_html(session_id: str):
     """Entrega o HTML produzido no sandbox da sessão atual."""
     _session_or_404(session_id)
     html_path = workspace_for_chat("workflow-demo-user", f"workflow-{session_id}") / "sandbox" / "HTML.html"
-    if not html_path.is_file():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="HTML.html ainda não foi gerado")
+    _require_non_empty_file(html_path, "HTML.html")
     return FileResponse(html_path, media_type="text/html", headers={"Cache-Control": "no-store"})
 
 
@@ -119,8 +364,7 @@ async def get_workflow_asset(session_id: str, filename: str):
         asset_path.relative_to(sandbox_dir)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail="Arquivo não encontrado") from exc
-    if not asset_path.is_file():
-        raise HTTPException(status_code=404, detail="Arquivo não encontrado")
+    _require_non_empty_file(asset_path, relative_name)
     return FileResponse(asset_path, headers={"Cache-Control": "no-store"})
 
 
@@ -140,6 +384,141 @@ async def upload_workflow_file(session_id: str, file: UploadFile = File(...)):
         raise HTTPException(status_code=413, detail="O arquivo deve ter no máximo 20 MB")
     target.write_bytes(content)
     return {"filename": filename, "sandbox_path": f"sandbox/{filename}", "size": len(content)}
+
+
+@router.post("/sessions/{session_id}/pdf")
+async def generate_workflow_pdf(session_id: str, file: UploadFile = File(...)):
+    """Converte o HTML enviado pelo frontend em PDF e devolve o arquivo."""
+    _session_or_404(session_id)
+    html_content = await file.read(MAX_PDF_HTML_BYTES + 1)
+    if len(html_content) > MAX_PDF_HTML_BYTES:
+        raise HTTPException(status_code=413, detail="O HTML deve ter no máximo 20 MB")
+    if not html_content.strip():
+        raise HTTPException(status_code=422, detail="O HTML não pode estar vazio")
+
+    sandbox_dir = workspace_for_chat("workflow-demo-user", f"workflow-{session_id}") / "sandbox"
+    sandbox_dir.mkdir(parents=True, exist_ok=True)
+    html_path = None
+    pdf_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            suffix=".html",
+            prefix="pdf-source-",
+            dir=sandbox_dir,
+            delete=False,
+        ) as html_file:
+            html_file.write(_html_for_pdf(html_content))
+            html_path = Path(html_file.name)
+
+        with tempfile.NamedTemporaryFile(suffix=".pdf", prefix="workflow-", delete=False) as pdf_file:
+            pdf_path = Path(pdf_file.name)
+        # O Chromium precisa de um perfil próprio e gravável mesmo em modo headless.
+        with tempfile.TemporaryDirectory(prefix="chromium-profile-", dir=sandbox_dir) as profile_dir:
+            profile_path = Path(profile_dir)
+            config_dir = profile_path / "config"
+            cache_dir = profile_path / "cache"
+            config_dir.mkdir()
+            cache_dir.mkdir()
+            process_env = os.environ.copy()
+            process_env.update(
+                {
+                    "XDG_CONFIG_HOME": str(config_dir),
+                    "XDG_CACHE_HOME": str(cache_dir),
+                }
+            )
+            result = await asyncio.to_thread(
+                subprocess.run,
+                [
+                    "chromium",
+                    "--headless",
+                    "--no-sandbox",
+                    "--disable-gpu",
+                    "--disable-dev-shm-usage",
+                    "--allow-file-access-from-files",
+                    f"--user-data-dir={profile_dir}",
+                    f"--print-to-pdf={pdf_path}",
+                    str(html_path),
+                ],
+                capture_output=True,
+                env=process_env,
+                timeout=120,
+                check=False,
+            )
+        if result.returncode != 0 or not pdf_path.is_file() or pdf_path.stat().st_size == 0:
+            detail = result.stderr.decode("utf-8", errors="replace").strip()
+            raise HTTPException(status_code=502, detail=detail or "Não foi possível gerar o PDF")
+
+        pdf_content = pdf_path.read_bytes()
+    except subprocess.TimeoutExpired as exc:
+        raise HTTPException(status_code=504, detail="A geração do PDF excedeu o tempo limite") from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail="O conversor de PDF não está disponível") from exc
+    finally:
+        if html_path:
+            html_path.unlink(missing_ok=True)
+        if pdf_path:
+            pdf_path.unlink(missing_ok=True)
+
+    return Response(
+        content=pdf_content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'attachment; filename="atividade.pdf"'},
+    )
+
+
+@router.websocket("/sessions/{session_id}/ws")
+async def workflow_socket(websocket: WebSocket, session_id: str):
+    """Transmite a resposta da LLM e sinaliza a conclusão com um evento done."""
+    await websocket.accept()
+    try:
+        _session_or_404(session_id)
+    except HTTPException as exc:
+        await websocket.close(code=1008, reason=str(exc.detail))
+        return
+
+    async def emit(event: dict) -> None:
+        await websocket.send_json(event)
+
+    try:
+        while True:
+            request = await websocket.receive_json()
+            request_type = request.get("type") if isinstance(request, dict) else None
+
+            if request_type == "message":
+                body = WorkflowMessageIn.model_validate(request)
+                payload = await _run_streamed_message(session_id, body, emit)
+                await websocket.send_json(payload)
+                continue
+
+            if request_type == "advance":
+                advance = WorkflowAdvanceIn.model_validate(request)
+                if _advance_allowed(session_id, advance.from_agent):
+                    payload = {
+                        "type": "done",
+                        "session_id": session_id,
+                        "allowed": True,
+                    }
+                    payload.update(_workflow_artifacts(session_id, advance.from_agent))
+                    await websocket.send_json(payload)
+                    continue
+                body = WorkflowMessageIn(
+                    text=_advance_instruction(advance.from_agent),
+                    agent_name=advance.from_agent,
+                )
+                payload = await _run_streamed_message(session_id, body, emit)
+                payload["allowed"] = _advance_allowed(session_id, advance.from_agent)
+                await websocket.send_json(payload)
+                continue
+
+            await websocket.send_json({"type": "error", "message": "Tipo de evento inválido."})
+    except WebSocketDisconnect:
+        return
+    except Exception as exc:
+        try:
+            await websocket.send_json({"type": "error", "message": str(exc)})
+        except WebSocketDisconnect:
+            return
 
 
 @router.post("/sessions/{session_id}/messages", response_model=WorkflowReplyOut)
@@ -181,7 +560,7 @@ async def send_workflow_message(session_id: str, body: WorkflowMessageIn):
             }
         }
         result = await GRAPH_BUILDER.ainvoke(state, config=graph_config)
-        reply_text = _message_text(result["messages"][-1].content)
+        reply_text = _clean_agent_text(result["messages"][-1].content)
         
     except Exception:
         # A entrada do usuário já foi salva. Deixamos o erro chegar ao front
@@ -205,34 +584,20 @@ async def send_workflow_message(session_id: str, body: WorkflowMessageIn):
 @router.post("/sessions/{session_id}/advance")
 async def advance_workflow(session_id: str, body: WorkflowAdvanceIn):
     """Valida o arquivo obrigatório antes de trocar de agente."""
-    required_file = "planning.json" if body.from_agent == "brainstorm" else "SPECIFICATION.md"
-    instruction = (
-        "O usuário solicitou avançar para o próximo agente. "
-        f"Verifique se {required_file} está completo no sandbox. "
-        f"Se não existir ou estiver incompleto, informe quais dados faltam. "
-        f"Se houver informações suficientes, gere ou atualize {required_file}, leia o arquivo novamente, "
-        "confirme que está correto e peça ao usuário para tentar avançar novamente."
-    )
+    if _advance_allowed(session_id, body.from_agent):
+        payload = {
+            "allowed": True,
+            "session_id": session_id,
+            "message": None,
+        }
+        payload.update(_workflow_artifacts(session_id, body.from_agent))
+        return payload
+
     reply_data = await send_workflow_message(
         session_id,
-        WorkflowMessageIn(text=instruction, agent_name=body.from_agent),
+        WorkflowMessageIn(text=_advance_instruction(body.from_agent), agent_name=body.from_agent),
     )
-    required_path = workspace_for_chat("workflow-demo-user", f"workflow-{session_id}") / "sandbox" / required_file
-    allowed = False
-    if body.from_agent == "brainstorm":
-        try:
-            planning = json.loads(required_path.read_text(encoding="utf-8"))
-            allowed = (
-                isinstance(planning, list)
-                and any(isinstance(item, dict) and item.get("user_has_accepted") is True for item in planning)
-            )
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-            allowed = False
-    else:
-        try:
-            allowed = required_path.is_file() and bool(required_path.read_text(encoding="utf-8").strip())
-        except (OSError, UnicodeDecodeError):
-            allowed = False
+    allowed = _advance_allowed(session_id, body.from_agent)
     if allowed:
         return {"allowed": True, **reply_data}
     # Mantém a resposta original da LLM no chat. O backend apenas informa o

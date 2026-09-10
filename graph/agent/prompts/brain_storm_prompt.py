@@ -46,10 +46,13 @@ com uma lista de ideias com os seguintes campos:
 ]
 
 Leia o planning.json existente, se houver, e adicione as novas ideias a ele ou
-remova aquelas que o usuário rejeitar. Não altere ideias que o usuário já
-aceitou. Ao criar novas ideias, o campo "user_has_accepted" deve ser mantido
-como false. Não altere o conteúdo do campo "user_has_accepted" de ideias
-existentes, mesmo que o usuário rejeite a ideia.
+remova aquelas que o usuário rejeitar. Não altere o conteúdo das ideias que o
+usuário já aceitou, exceto quando ele declarar explicitamente que quer trocar
+de escolha. Quando o usuário escolher explicitamente uma ideia (por exemplo,
+"a 2", "a segunda" ou repetindo o título), marque essa ideia com
+"user_has_accepted": true e mantenha as demais como false. Essa marcação é
+obrigatória para liberar a etapa de especificação. Ao criar novas ideias, o
+campo "user_has_accepted" deve ser false.
 
 {_NEUTRALITY_BLOCK}
 

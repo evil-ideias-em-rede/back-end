@@ -47,7 +47,7 @@ h1 { margin-bottom: 0; font-size: clamp(20px, 3vw, 29px); letter-spacing: -.04em
 .progress-line { flex: 1; height: 1px; margin: 0 17px; background: var(--line); }
 
 .workspace { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; height: calc(100vh - 220px); min-height: 0; align-items: stretch; }
-.workspace.has-html-preview { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+.workspace.has-html-preview, .workspace.has-document-preview { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
 .main-card, .preview-card { border: 1px solid var(--line); border-radius: 18px; background: var(--card); box-shadow: 0 12px 34px rgba(29, 29, 24, .035); }
 .main-card { display: flex; flex-direction: column; min-height: 0; height: 100%; padding: clamp(25px, 5vw, 48px); overflow: hidden; }
 #step-content { display: flex; flex: 1; flex-direction: column; min-height: 0; }
@@ -74,7 +74,19 @@ textarea:focus { border-color: var(--purple); box-shadow: 0 0 0 3px var(--lavend
 .preview-heading { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; margin-bottom: 17px; }
 .preview-heading h2 { margin: 0; font-size: 17px; letter-spacing: -.02em; }
 .preview-heading a { color: var(--purple); font-size: 12px; font-weight: 700; }
+.preview-actions { display: flex; align-items: center; gap: 12px; }
+.pdf-button { border: 1px solid var(--purple); border-radius: 8px; padding: 7px 10px; color: var(--purple); background: #fff; font-size: 12px; font-weight: 700; }
+.pdf-button:hover { color: #fff; background: var(--purple); }
+.pdf-button:disabled { cursor: wait; opacity: .6; }
 #html-preview { display: block; width: 100%; height: auto; min-height: 0; flex: 1; border: 1px solid var(--line); border-radius: 10px; background: #9a9a9a; }
+.document-preview-content { flex: 1; min-height: 0; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; padding: 16px; background: #fcfcfa; }
+.artifact-markdown { margin: 0; color: #55544f; font: inherit; font-size: 13px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.planning-list { display: grid; gap: 12px; }
+.planning-item { border: 1px solid var(--line); border-radius: 10px; padding: 13px; background: #fff; }
+.planning-item h3 { margin: 0 0 7px; color: var(--ink); font-size: 15px; }
+.planning-item p { margin: 0 0 8px; color: #55544f; font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
+.planning-item p:last-child { margin-bottom: 0; }
+.planning-status { display: inline-block; margin-bottom: 8px; border-radius: 999px; padding: 3px 8px; color: var(--purple); background: var(--lavender); font-size: 10px; font-weight: 700; }
 .html-edit-panel { margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--line); }
 .selected-html-target { margin: 0 0 8px; color: var(--purple); font-size: 12px; font-weight: 700; }
 .html-edit-panel textarea { min-height: 90px; margin-bottom: 10px; }
@@ -84,6 +96,8 @@ textarea:focus { border-color: var(--purple); box-shadow: 0 0 0 3px var(--lavend
 .clip-button:hover { color: var(--purple); background: var(--lavender); }
 .error-message { display: none; margin: 18px 0 0; border-radius: 10px; padding: 12px; color: #9e3c3c; background: #fff0f0; font-size: 13px; }
 .error-message.visible { display: block; }
+.agent-feedback { display: none; max-height: 160px; overflow-y: auto; margin: 18px 0 0; border: 1px solid var(--line); border-radius: 10px; padding: 12px; color: var(--ink); background: var(--lavender); font-size: 13px; white-space: pre-wrap; }
+.agent-feedback.visible { display: block; }
 .loading { color: var(--muted); font-size: 13px; }
 .stage-thread { display: grid; flex: 1; min-height: 120px; gap: 12px; overflow-y: auto; margin-bottom: 18px; padding: 2px 4px 4px 0; }
 .stage-thread:has(.empty-stage) { flex: 0 0 auto; }
@@ -103,7 +117,7 @@ textarea:focus { border-color: var(--purple); box-shadow: 0 0 0 3px var(--lavend
   .progress { margin: 35px auto 28px; }
   .progress-step strong { display: none; }
   .progress-line { margin: 0 9px; }
-  .workspace, .workspace.has-html-preview { grid-template-columns: 1fr; height: auto; }
+  .workspace, .workspace.has-html-preview, .workspace.has-document-preview { grid-template-columns: 1fr; height: auto; }
   .main-card { min-height: 0; }
   .preview-card { order: 2; }
   .stage-thread { max-height: none; overflow: visible; }

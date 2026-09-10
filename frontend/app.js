@@ -4,11 +4,15 @@ const state = {
   activeAgent: "debate",
   messages: [],
   loading: false,
+  advanceFeedback: "",
+  streamingMessage: null,
+  artifacts: {},
 };
 
 const stepCopy = document.querySelector("#step-copy");
 const stepContent = document.querySelector("#step-content");
 const errorMessage = document.querySelector("#error-message");
+const agentFeedback = document.querySelector("#agent-feedback");
 const htmlPreviewCard = document.querySelector("#html-preview-card");
 const htmlPreview = document.querySelector("#html-preview");
 const htmlOpenLink = document.querySelector("#html-open-link");
@@ -20,10 +24,17 @@ const htmlEditSubmit = document.querySelector("#html-edit-submit");
 const htmlAttachButton = document.querySelector("#html-attach-button");
 const htmlFileInput = document.querySelector("#html-file-input");
 const htmlFileName = document.querySelector("#html-file-name");
+const generatePdfButton = document.querySelector("#generate-pdf-button");
+const documentPreviewCard = document.querySelector("#document-preview-card");
+const documentPreviewTitle = document.querySelector("#document-preview-title");
+const documentPreviewContent = document.querySelector("#document-preview-content");
 let selectedHtmlId = null;
 let htmlEdits = {};
 let pendingHtmlFile = null;
 let pendingChatFile = null;
+let workflowSocket = null;
+let socketConnectPromise = null;
+let activeSocketRequest = null;
 
 const AGENTS = {
   debate: ["Debate", "Constrói uma proposta de debate com argumentos e mediação."],
@@ -46,19 +57,163 @@ function setError(message = "") {
   errorMessage.classList.toggle("visible", Boolean(message));
 }
 
+function setAgentFeedback(message = "") {
+  state.advanceFeedback = message;
+  agentFeedback.textContent = message;
+  agentFeedback.classList.toggle("visible", Boolean(message));
+}
+
 function setLoading(loading) {
   state.loading = loading;
   document.querySelectorAll("button").forEach((button) => { button.disabled = loading; });
 }
 
+function workflowSocketUrl() {
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${protocol}//${window.location.host}/api/workflow/sessions/${state.sessionId}/ws`;
+}
+
+function closeWorkflowSocket() {
+  if (activeSocketRequest) {
+    activeSocketRequest.reject(new Error("A conexão com o agente foi encerrada."));
+    activeSocketRequest = null;
+  }
+  if (workflowSocket) workflowSocket.close();
+  workflowSocket = null;
+  socketConnectPromise = null;
+}
+
+function ensureWorkflowSocket() {
+  if (workflowSocket && workflowSocket.readyState === WebSocket.OPEN) return Promise.resolve(workflowSocket);
+  if (socketConnectPromise) return socketConnectPromise;
+
+  socketConnectPromise = new Promise((resolve, reject) => {
+    const socket = new WebSocket(workflowSocketUrl());
+    workflowSocket = socket;
+    socket.onopen = () => {
+      socketConnectPromise = null;
+      resolve(socket);
+    };
+    socket.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      if (!activeSocketRequest) return;
+      if (message.type === "token") {
+        activeSocketRequest.onToken(message.content || "");
+      } else if (message.type === "done") {
+        const request = activeSocketRequest;
+        activeSocketRequest = null;
+        request.resolve(message);
+      } else if (message.type === "error") {
+        const request = activeSocketRequest;
+        activeSocketRequest = null;
+        request.reject(new Error(message.message || "O agente não conseguiu responder agora."));
+      }
+    };
+    socket.onerror = () => {
+      if (activeSocketRequest) {
+        activeSocketRequest.reject(new Error("Não foi possível conectar ao agente."));
+        activeSocketRequest = null;
+      }
+      reject(new Error("Não foi possível conectar ao agente."));
+    };
+    socket.onclose = () => {
+      workflowSocket = null;
+      socketConnectPromise = null;
+      if (activeSocketRequest) {
+        activeSocketRequest.reject(new Error("A conexão com o agente foi encerrada."));
+        activeSocketRequest = null;
+      }
+    };
+  });
+  return socketConnectPromise;
+}
+
+async function sendSocketRequest(payload, onToken) {
+  const socket = await ensureWorkflowSocket();
+  if (activeSocketRequest) throw new Error("Já existe uma solicitação em andamento.");
+  return new Promise((resolve, reject) => {
+    activeSocketRequest = { resolve, reject, onToken };
+    socket.send(JSON.stringify(payload));
+  });
+}
+
+function renderStreamingConversation(agentName) {
+  const thread = document.querySelector("#stage-thread");
+  if (!thread) return;
+  thread.innerHTML = renderConversation(agentName);
+  scrollStageThreadToBottom();
+}
+
+function scrollStageThreadToBottom() {
+  requestAnimationFrame(() => {
+    const thread = document.querySelector("#stage-thread");
+    if (thread) thread.scrollTop = thread.scrollHeight;
+  });
+}
+
+function startStreamingMessage(agentName) {
+  state.streamingMessage = { role: "assistant", content: "", agent_name: agentName };
+  renderStreamingConversation(agentName);
+}
+
+function appendStreamToken(agentName, token) {
+  if (!state.streamingMessage || state.streamingMessage.agent_name !== agentName) return;
+  state.streamingMessage.content += token;
+  renderStreamingConversation(agentName);
+}
+
+async function refreshWorkflowArtifacts(data) {
+  // Este ponto só é chamado após o evento `done` recebido pelo socket.
+  if (!data.artifact_url) return;
+  const response = await fetch(`${data.artifact_url}?v=${Date.now()}`);
+  if (!response.ok) return;
+  const content = await response.text();
+  state.artifacts[data.artifact_name] = content;
+  if (data.artifact_name === "HTML.html") {
+    updateHtmlPreview(data.html_url || data.artifact_url);
+  } else {
+    updateDocumentPreview(data.artifact_name, content);
+  }
+}
+
 function updateHtmlPreview(url) {
   if (!url) return;
+  documentPreviewCard.hidden = true;
+  workspace.classList.remove("has-document-preview");
   const freshUrl = `${url}?v=${Date.now()}`;
   htmlPreview.src = freshUrl;
   htmlOpenLink.href = freshUrl;
   htmlPreviewCard.hidden = false;
   workspace.classList.add("has-html-preview");
   htmlPreview.addEventListener("load", bindHtmlSections, { once: true });
+}
+
+function updateDocumentPreview(filename, content) {
+  htmlPreviewCard.hidden = true;
+  workspace.classList.remove("has-html-preview");
+  documentPreviewTitle.textContent = filename;
+  if (filename === "planning.json") {
+    try {
+      const planning = JSON.parse(content);
+      const items = Array.isArray(planning) ? planning : [];
+      documentPreviewContent.innerHTML = items.length
+        ? `<div class="planning-list">${items.map((item) => `
+            <article class="planning-item">
+              ${item.user_has_accepted === true ? '<span class="planning-status">Ideia aceita</span>' : ""}
+              <h3>${escapeHtml(item.title || "Ideia sem título")}</h3>
+              <p>${escapeHtml(item.description || "")}</p>
+              ${item.long_description ? `<p>${escapeHtml(item.long_description)}</p>` : ""}
+            </article>
+          `).join("")}</div>`
+        : '<p class="artifact-markdown">Nenhuma ideia registrada ainda.</p>';
+    } catch (error) {
+      documentPreviewContent.innerHTML = `<pre class="artifact-markdown">${escapeHtml(content)}</pre>`;
+    }
+  } else {
+    documentPreviewContent.innerHTML = `<pre class="artifact-markdown">${escapeHtml(content)}</pre>`;
+  }
+  documentPreviewCard.hidden = false;
+  workspace.classList.add("has-document-preview");
 }
 
 function saveHtmlEdits() {
@@ -103,10 +258,13 @@ function hasAssistantReply(agentName) {
 
 function renderConversation(agentName) {
   const messages = stageMessages(agentName);
-  if (!messages.length) {
+  const streaming = state.streamingMessage && state.streamingMessage.agent_name === agentName
+    ? [state.streamingMessage]
+    : [];
+  if (!messages.length && !streaming.length) {
     return '<p class="empty-stage">Comece a conversa quando quiser.</p>';
   }
-  return messages.map((message) => `
+  return [...messages, ...streaming].map((message) => `
     <article class="stage-message ${message.role}">
       <span class="stage-message-role">${message.role === "user" ? "Você" : "Agente"}</span>
       <p>${escapeHtml(message.content)}</p>
@@ -196,9 +354,11 @@ function renderStep() {
       if ((event.ctrlKey || event.metaKey) && event.key === "Enter") sendStageMessage(state.activeAgent);
     });
   }
+  scrollStageThreadToBottom();
 }
 
 async function createSession() {
+  closeWorkflowSocket();
   const response = await fetch("/api/workflow/sessions", { method: "POST" });
   if (!response.ok) throw new Error("Não foi possível iniciar a sessão.");
   const session = await response.json();
@@ -207,9 +367,14 @@ async function createSession() {
   state.messages = session.messages;
   state.step = 0;
   state.activeAgent = "debate";
+  state.streamingMessage = null;
+  state.artifacts = {};
+  setAgentFeedback("");
   htmlPreview.src = "about:blank";
   htmlPreviewCard.hidden = true;
+  documentPreviewCard.hidden = true;
   workspace.classList.remove("has-html-preview");
+  workspace.classList.remove("has-document-preview");
   htmlEditPanel.hidden = true;
   selectedHtmlId = null;
   htmlEdits = {};
@@ -220,36 +385,59 @@ async function createSession() {
 async function callAgent(agentName, text) {
   if (!text.trim()) throw new Error("Escreva uma mensagem antes de enviar.");
   setError("");
+  setAgentFeedback("");
   setLoading(true);
-  const response = await fetch(`/api/workflow/sessions/${state.sessionId}/messages`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text: text.trim(), agent_name: agentName }),
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.detail || "O agente não conseguiu responder agora.");
-  state.messages.push({ role: "user", content: text.trim(), agent_name: agentName });
-  state.messages.push(data.message);
-  updateHtmlPreview(data.html_url);
-  return data.message;
+  const normalizedText = text.trim();
+  state.messages.push({ role: "user", content: normalizedText, agent_name: agentName });
+  startStreamingMessage(agentName);
+  let completedMessage;
+  try {
+    const data = await sendSocketRequest(
+      { type: "message", text: normalizedText, agent_name: agentName },
+      (token) => appendStreamToken(agentName, token),
+    );
+    state.streamingMessage = null;
+    if (data.message) {
+      state.messages.push(data.message);
+      completedMessage = data.message;
+    }
+    await refreshWorkflowArtifacts(data);
+  } catch (error) {
+    state.streamingMessage = null;
+    renderStreamingConversation(agentName);
+    throw error;
+  }
+  return completedMessage;
 }
 
 async function requestAdvance(fromAgent) {
   setError("");
+  setAgentFeedback("");
   setLoading(true);
-  const response = await fetch(`/api/workflow/sessions/${state.sessionId}/advance`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ from_agent: fromAgent }),
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.detail || "Não foi possível validar o avanço.");
-  if (data.message) state.messages.push(data.message);
-  if (data.html_url) updateHtmlPreview(data.html_url);
-  renderStep();
-  if (data.allowed) {
-    state.step += 1;
+  startStreamingMessage(fromAgent);
+  try {
+    const data = await sendSocketRequest(
+      { type: "advance", from_agent: fromAgent },
+      (token) => appendStreamToken(fromAgent, token),
+    );
+    state.streamingMessage = null;
+    if (data.message) {
+      state.messages.push(data.message);
+      // Quando não pode avançar, a resposta já aparece no histórico da conversa.
+      // O feedback separado só é necessário depois da troca de etapa, quando o
+      // histórico do agente anterior deixa de estar visível.
+      setAgentFeedback(data.allowed ? (data.message.content || "") : "");
+    }
+    await refreshWorkflowArtifacts(data);
     renderStep();
+    if (data.allowed) {
+      state.step += 1;
+      renderStep();
+    }
+  } catch (error) {
+    state.streamingMessage = null;
+    renderStreamingConversation(fromAgent);
+    throw error;
   }
 }
 
@@ -326,6 +514,45 @@ htmlFileInput.addEventListener("change", (event) => {
   pendingHtmlFile = event.target.files[0] || null;
   htmlFileName.textContent = pendingHtmlFile ? pendingHtmlFile.name : "";
 });
+
+async function generatePdf() {
+  if (!state.sessionId || !htmlOpenLink.href || htmlOpenLink.getAttribute("href") === "#") {
+    setError("Gere o HTML antes de criar o PDF.");
+    return;
+  }
+  setError("");
+  setLoading(true);
+  try {
+    const htmlResponse = await fetch(htmlOpenLink.href);
+    if (!htmlResponse.ok) throw new Error("Não foi possível ler o HTML atual.");
+    const htmlBlob = await htmlResponse.blob();
+    const form = new FormData();
+    form.append("file", htmlBlob, "HTML.html");
+    const response = await fetch(`/api/workflow/sessions/${state.sessionId}/pdf`, {
+      method: "POST",
+      body: form,
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.detail || "Não foi possível gerar o PDF.");
+    }
+    const pdfBlob = await response.blob();
+    const downloadUrl = URL.createObjectURL(pdfBlob);
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = "atividade.pdf";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(downloadUrl);
+  } catch (error) {
+    setError(error.message);
+  } finally {
+    setLoading(false);
+  }
+}
+
+generatePdfButton.addEventListener("click", generatePdf);
 
 htmlEditInput.addEventListener("input", () => {
   if (!selectedHtmlId) return;

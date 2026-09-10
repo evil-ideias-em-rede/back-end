@@ -37,7 +37,7 @@ def _safe_config(state, config: RunnableConfig | None) -> RunnableConfig:
 
 
 async def run_agent(state, system_prompt: str, config: RunnableConfig | None = None) -> dict:
-    """Executa uma rodada do agente; o grafo decide se chama as ferramentas."""
+    """Executa uma rodada do agente em streaming; o grafo decide se chama as ferramentas."""
     safe_config = _safe_config(state, config)
     system_text = system_prompt
     if state.get("context"):
@@ -49,5 +49,9 @@ async def run_agent(state, system_prompt: str, config: RunnableConfig | None = N
 
     messages = [SystemMessage(content=system_text), *state.get("messages", [])]
     model = get_chat_model().bind_tools([execute_bash])
-    response = await model.ainvoke(messages, config=safe_config)
+    response = None
+    async for chunk in model.astream(messages, config=safe_config):
+        response = chunk if response is None else response + chunk
+    if response is None:
+        raise RuntimeError("A LLM não retornou nenhum conteúdo")
     return {"messages": [response]}

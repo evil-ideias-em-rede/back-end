@@ -1,371 +1,309 @@
 ---
-nome: geracao_html_a4
-quando_usar: >
-  O usuário pede um documento, relatório, ficha, proposta, cardápio,
-  currículo ou material visual em HTML cujo resultado final precisa manter
-  as proporções de uma folha impressa (A4), porque será convertido para PDF
-  mais adiante — mesmo que a conversão em si não aconteça agora. Não use
-  este guia para HTML solto/interativo pensado só pra tela (dashboard,
-  landing page, formulário dinâmico): para isso, siga apenas o README
-  genérico do sandbox sobre como montar um HTML bem-feito. Este guia é uma
-  camada ADICIONAL de regras, específica para quando o HTML precisa se
-  comportar como página(s) de documento.
+name: geracao_html_a4
+description: Ensina a criar páginas HTML no formato de uma folha de ofício/relatório A4 em pé (retrato), organizadas em seções `<div>` com ID único e estável, onde cada seção é clicável — ao clicar, o usuário pode dizer o que quer mudar naquele trecho específico. Use este skill sempre que o usuário pedir ofícios, memorandos, atas, editais, contratos, planos de aula, formulários ou qualquer documento no estilo "folha impressa" A4 que ele queira revisar seção por seção depois. Gatilhos: "folha de ofício", "página A4", "documento clicável", "documento editável por seção", "modelo de documento oficial", ou quando o usuário envia a imagem de um documento formatado pedindo uma versão HTML equivalente.
 ---
 
-# Como gerar HTML no formato de folha A4 (pronto para virar PDF depois)
-
-Você tem acesso à ferramenta `execute_bash`, que executa comandos num
-sandbox. Não existe geração de PDF nesta etapa — o entregável aqui é
-sempre um arquivo `HTML.html` autocontido que já existe dentro do sandbox.
-A conversão para PDF é um passo futuro e separado, feito fora deste fluxo;
-seu trabalho é garantir que o HTML já nasça com as proporções e a estrutura
-corretas para que essa conversão, quando acontecer, não distorça nada.
-
-## Fluxo recomendado
-
-1. Manipule o HTML completo no arquivo HTML.html.
-2. Rode `ls -la HTML.html` para confirmar que o arquivo existe e tem tamanho > 0.
-3. Não tente instalar nada nem chamar ferramentas de conversão — o entregável é o
-`.html` em si.
-4. Você pode consultar as bibliotecas existentes para lhe auxiliar no visual.
-
-## Imagens e arquivos anexados
-
-Quando o usuário anexar uma imagem ou outro arquivo, ele ficará disponível na
-raiz do sandbox. No `HTML.html`, referencie-o pelo nome relativo, por exemplo:
-
-```html
-<img src="UFCG-Central.png" alt="Logo UFCG">
-```
-
-Não converta a imagem para Base64 sem necessidade. O sistema serve os arquivos
-do sandbox junto com o HTML, permitindo que referências relativas funcionem no
-preview e na sessão atual. Antes de concluir, confirme com `ls -la` que o nome
-do arquivo usado no HTML corresponde exatamente ao arquivo anexado.
-
-# Página A4 Editável (HTML com seções clicáveis)
-
-Gera uma página HTML de largura/altura reais de A4 (210mm × 297mm), com a
-aparência de um documento institucional impresso (título centralizado,
-seções com cabeçalho em negrito, parágrafos justificados, listas com
-marcador, rodapé de fontes). Cada bloco de conteúdo fica dentro de uma
-`<div class="secao">` com **id único**. Ao clicar numa seção, abre-se um
-campo de anotação ali mesmo, onde o usuário escreve o que quer mudar
-naquele trecho. Um painel lateral fixo reúne todas as anotações feitas e
-oferece um botão para copiá-las em formato de lista (`id: alteração`),
-pronto para o usuário colar de volta na conversa e pedir a edição.
-
-Esse padrão é útil como **etapa intermediária de revisão**: em vez de o
-usuário reescrever tudo em prosa, ele aponta exatamente qual seção quer
-mexer e o que quer mudar nela.
+# Folha de Ofício A4 Editável (HTML)
 
 ## Quando usar
 
-- Pedido explícito de página/folha em formato A4, ofício, memorando, edital,
-  manual institucional, norma interna, comunicado.
-- Usuário envia uma imagem/print de um documento formal e pede para "reproduzir",
-  "recriar" ou "montar isso em HTML".
-- Usuário quer um rascunho de documento onde ele possa clicar nas partes e indicar
-  mudanças antes da versão final.
+Use este skill quando o pedido for por um documento HTML que deve **parecer uma folha de papel A4 em pé** (ofício, memorando, ata, edital, plano de aula, contrato, formulário etc.) e onde o usuário vai querer **apontar partes específicas para alterar depois**, em vez de reescrever o documento inteiro a cada rodada de feedback.
 
-Não usar quando o pedido é apenas "escrever um texto/relatório" sem
-menção a formato de página, impressão ou revisão por seções — nesse caso
-um `.md` ou `.docx` simples resolve melhor (ver skill `docx`).
+A ideia central é simples: cada bloco de conteúdo da folha vira um `<div>` com um **ID único e estável**. Ao clicar nesse bloco, o usuário registra o que quer mudar ali — e nas próximas rodadas, você (Claude) edita só aquele `<div>`, sem tocar no resto do documento.
 
-## 1. Estrutura da página (dimensões reais de A4)
+## Antes de gerar o arquivo: conversar primeiro
 
-Sempre usar `mm` para as dimensões da folha, não `px` nem `%`. Isso garante
-que, ao imprimir (Ctrl+P → salvar como PDF), o resultado saia exatamente
-no tamanho A4.
+Não pule direto para o HTML. Enquanto ainda estiver esclarecendo tema, conteúdo, série/público ou qualquer outro dado necessário, responda em texto normal — só crie o arquivo quando o usuário pedir isso explicitamente ("gera o documento", "monta o HTML", "fecha isso"). Depois que o arquivo existir, qualquer pedido de ajuste é uma edição pontual na seção certa (ver "Depois que o usuário responder", no fim deste guia), nunca uma regeração do zero.
+
+## Passo 1 — Montar a "folha" A4
+
+Uma folha A4 tem 210mm × 297mm. Não precisa converter para pixels: navegadores modernos entendem `mm` direto, e isso deixa a proporção correta tanto na tela quanto na impressão.
 
 ```css
+:root {
+  --largura-folha: 210mm;
+  --altura-folha: 297mm;
+}
+
 body {
+  background: #e8e8e8; /* área cinza ao redor, para a folha branca se destacar */
   margin: 0;
-  background: #9a9a9a; /* fundo cinza fora da folha, só para visualização em tela */
-  font-family: 'Times New Roman', Times, serif;
-  display: flex;
-  justify-content: center;
+  padding: 32px 16px;
 }
 
-.folha-a4 {
-  width: 210mm;
-  min-height: 297mm;
-  padding: 20mm 25mm;
-  margin: 10mm auto;
+.pagina {
+  width: var(--largura-folha);
+  min-height: var(--altura-folha);
+  margin: 0 auto 24px;
+  padding: 20mm 22mm; /* margens de um ofício típico */
   background: #fff;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.18); /* sombra sutil = "papel sobre a mesa" */
   box-sizing: border-box;
-  position: relative;
-  font-size: 12pt;
-  line-height: 1.4;
-  color: #111;
-}
-
-/* Ao imprimir, remove fundo cinza, sombra e margem extra */
-@media print {
-  body { background: none; display: block; }
-  .folha-a4 { margin: 0; box-shadow: none; }
-  .secao:hover { background: none !important; outline: none !important; }
-  .anotacao, #painel-alteracoes, .rotulo-secao { display: none !important; }
 }
 ```
 
-Para documentos com mais de uma página, repita `.folha-a4` quantas vezes
-for preciso e adicione `page-break-after: always;` em todas menos a
-última (dentro do `@media print`).
+**Padrão: uma única `.pagina`, contínua, sem abas.** Na grande maioria dos casos (ofício, memorando, plano de aula, formulário) o documento é uma folha só — deixe o conteúdo crescer verticalmente dentro de uma `.pagina` (por isso `min-height`, não `height` fixo) em vez de inventar uma navegação por abas ou "página 1 / página 2" clicável dentro do HTML. Isso quebra a metáfora de folha impressa e adiciona uma camada de JS/estado que ninguém pediu.
 
-Tipografia típica desse tipo de documento (ajuste ao que a imagem/pedido mostrar):
-- Título do documento: negrito, centralizado, ~13–14pt.
-- Cabeçalho de seção: negrito, versalete/maiúsculo, ~12pt, seguido de ponto final.
-- Corpo: parágrafos justificados, 12pt, espaçamento 1.4–1.5.
-- Listas: marcador `•`, recuo simples.
-- Rodapé de fontes/referências: fonte menor (~9–10pt), no fim da página.
+Só use mais de uma `.pagina` quando o conteúdo realmente for longo o bastante para exigir múltiplas folhas impressas de verdade (um contrato de 4 páginas, por exemplo). Mesmo nesse caso, é para a **impressão** (`page-break-after`, ver Passo 6) — continue sem tabs ou botões de "próxima página"; o usuário rola a página normalmente na tela.
 
-## 2. Seções em div com id único
+## Passo 2 — Dividir o conteúdo em seções com ID único
 
-Cada unidade lógica do documento (título, cada seção com seu cabeçalho,
-rodapé) vira uma `<div class="secao">`. Regras:
-
-- `id` único, kebab-case, descritivo do conteúdo (`sec-titulo`,
-  `sec-abertura-processos`, `sec-rodape`) — nunca `sec-1`, `sec-2`.
-- `data-nome-secao="Rótulo curto e legível"` — aparece no hover e no
-  painel de alterações.
-- Não dividir demais: um parágrafo isolado não precisa virar seção própria;
-  agrupe pelo cabeçalho/bloco temático, do jeito que uma pessoa apontaria
-  "quero mudar essa parte aqui".
+Cada bloco de sentido (título, um item de lista de itens relacionados, um parágrafo, a seção de fontes/rodapé) vira uma `<div class="secao">` com um `id` descritivo. Prefira nomes que descrevam o **conteúdo**, não a posição ("secao-abertura-processos", não "secao-2") — assim o ID continua fazendo sentido mesmo depois de reordenar ou editar o documento.
 
 ```html
-<div class="secao" id="sec-titulo" data-nome-secao="Título do documento">
-  <h1>Informações sobre o manuseio de processos</h1>
+<div class="secao" id="secao-titulo" data-titulo="Título" onclick="selecionar(this)">
+  <h1>INFORMAÇÕES SOBRE O ASSUNTO X</h1>
 </div>
 
-<div class="secao" id="sec-abertura-processos" data-nome-secao="Abertura de Processos e Expedientes">
-  <h2>ABERTURA DE PROCESSOS E EXPEDIENTES.</h2>
+<div class="secao" id="secao-abertura" data-titulo="Abertura de processos" onclick="selecionar(this)">
+  <h2>ABERTURA DE PROCESSOS.</h2>
   <ul>
-    <li>Os Órgãos das Unidades devem solicitar a abertura de Processo ou de
-    Expediente por meio de memorando, o qual deverá conter texto sugerindo
-    o "Assunto" e "Interessado" da capa do P/E.</li>
-    <li>A Seção Técnica de Comunicações deve registrar os Processos,
-    inserindo os dados no Sistema de Protocolo e autuar processos, contendo
-    etiqueta de identificação e os documentos iniciais recebidos para a
-    abertura, em ordem cronológica, com todas as folhas numeradas e
-    rubricadas.</li>
+    <li>Primeiro ponto sobre o procedimento.</li>
+    <li>Segundo ponto, com detalhes adicionais.</li>
   </ul>
 </div>
 ```
 
-## 3. Interatividade: clicar para marcar uma mudança
+Duas regras evitam dor de cabeça depois:
+- **Não aninhe `<div class="secao">` uma dentro da outra.** Se um clique precisa "borbulhar" por duas seções sobrepostas, o usuário nunca vai saber qual delas está editando. Mantenha uma estrutura plana: uma seção, um bloco de conteúdo.
+- **IDs são para sempre.** Quando o usuário disser "na secao-abertura, troque X por Y", você deve localizar exatamente essa `div` no arquivo e editar só ela com `str_replace` — é para isso que o ID serve. Não regenere o arquivo inteiro a cada pedido de ajuste; isso desperdiça contexto e arrisca mudar coisas que o usuário não pediu.
 
-Ao clicar em qualquer `.secao`, abre um campo de texto **dentro dela**
-(não um `alert`/`prompt` do navegador — fica feio e trava a tela). A
-seção marcada ganha uma borda lateral colorida. Um painel fixo no canto
-mostra todas as marcações e permite copiar tudo formatado.
+### Convenções de ID por tipo de documento
+
+Ter um padrão de nomes por tipo de documento facilita tanto a sua vida (editar depois) quanto a de outros agentes/pipelines que gerem o mesmo tipo de peça repetidamente:
+
+| Tipo de documento | IDs sugeridos |
+|---|---|
+| Ofício / memorando | `secao-titulo`, `secao-abertura`, `secao-tramite`, `secao-conservacao`, `secao-fontes` |
+| Plano de aula | `secao-titulo`, `secao-objetivos`, `secao-materiais`, `secao-etapas`, `secao-avaliacao`, `secao-adaptacao`, `secao-referencias` |
+| Ata de reunião | `secao-titulo`, `secao-participantes`, `secao-pauta`, `secao-deliberacoes`, `secao-encaminhamentos` |
+| Contrato / termo | `secao-titulo`, `secao-partes`, `secao-objeto`, `secao-clausulas`, `secao-assinaturas` |
+
+Se o pedido não se encaixar em nenhuma dessas categorias, invente IDs seguindo o mesmo espírito (descritivos, em kebab-case, prefixados com `secao-`) em vez de forçar um encaixe.
+
+## Passo 3 — Tornar as seções clicáveis
+
+Existem dois contextos possíveis, e o comportamento certo depende de qual deles você está usando. Em nenhum dos dois a seção deve abrir um modal ou caixa de texto pedindo "o que você quer mudar" — isso é papel de outro componente fora do HTML (um campo de mensagem, o próprio chat, uma extensão). O trabalho da `.secao` é só parecer clicável e mostrar visualmente qual está selecionada; o `id` e o conteúdo já estão no DOM para quem for capturar a informação.
+
+**A) Página HTML autônoma (artifact/arquivo para o usuário salvar ou imprimir)** — o clique apenas destaca a seção selecionada, nada mais:
 
 ```css
 .secao {
   position: relative;
+  padding: 10px 14px;
+  margin: 0 -14px 14px;
+  border-radius: 6px;
   cursor: pointer;
-  padding: 6px 10px;
-  margin: 0 -10px 14px -10px;
-  border-radius: 4px;
-  border-left: 4px solid transparent;
-  transition: background 0.15s, border-color 0.15s;
 }
 .secao:hover {
-  background: rgba(255, 200, 0, 0.12);
+  background: rgba(124, 58, 237, 0.08);
+  outline: 1px dashed #7C3AED;
 }
-.secao:hover .rotulo-secao {
-  opacity: 1;
-}
-.secao.marcada {
-  border-left-color: #e04b4b;
-  background: rgba(224, 75, 75, 0.06);
-}
-.rotulo-secao {
-  position: absolute;
-  top: -9px;
-  right: 2px;
-  background: #333;
-  color: #fff;
-  font-family: Arial, sans-serif;
-  font-size: 9px;
-  padding: 1px 6px;
-  border-radius: 3px;
-  opacity: 0;
-  transition: opacity 0.15s;
-  pointer-events: none;
-}
-.anotacao {
-  margin-top: 8px;
-  font-family: Arial, sans-serif;
-}
-.anotacao textarea {
-  width: 100%;
-  box-sizing: border-box;
-  font-family: Arial, sans-serif;
-  font-size: 11px;
-  padding: 6px;
-  border: 1px solid #e04b4b;
-  border-radius: 4px;
-  resize: vertical;
-}
-#painel-alteracoes {
-  position: fixed;
-  top: 16px;
-  right: 16px;
-  width: 260px;
-  max-height: 80vh;
-  overflow-y: auto;
-  background: #fff;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.2);
-  font-family: Arial, sans-serif;
-  font-size: 12px;
-  padding: 12px;
-  display: none;
-  z-index: 999;
-}
-#painel-alteracoes h3 { margin: 0 0 8px; font-size: 13px; }
-#painel-alteracoes ul { list-style: none; margin: 0 0 10px; padding: 0; }
-#painel-alteracoes li { margin-bottom: 8px; line-height: 1.35; }
-#painel-alteracoes button {
-  width: 100%;
-  padding: 6px;
-  border: none;
-  border-radius: 5px;
-  background: #2563eb;
-  color: #fff;
-  cursor: pointer;
-  font-size: 12px;
+.secao.selecionada {
+  background: rgba(124, 58, 237, 0.08);
+  outline: 2px solid #7C3AED;
 }
 ```
 
+```javascript
+function selecionar(el) {
+  document.querySelectorAll('.secao').forEach(s => s.classList.remove('selecionada'));
+  el.classList.add('selecionada');
+}
+```
+
+Se a integração precisar ser avisada explicitamente de qual seção foi clicada (por exemplo, um app por fora escutando via `postMessage`), adicione isso dentro da mesma função — mas não construa um campo de texto ou painel de anotações dentro do HTML para capturar a mensagem; isso não é responsabilidade desta página.
+
+**B) Dentro do widget do Visualizer (`visualize:show_widget`)** — esse ambiente expõe uma função global `sendPrompt(texto)` que manda a mensagem direto para o chat, como se o usuário tivesse digitado:
+
 ```html
-<div id="painel-alteracoes">
-  <h3>Alterações marcadas</h3>
-  <ul id="lista-alteracoes"></ul>
-  <button onclick="copiarAlteracoes()">Copiar tudo</button>
+<div class="secao" id="secao-abertura" data-titulo="Abertura de processos"
+     onclick="sendPrompt('Quero alterar a seção &quot;' + this.dataset.titulo + '&quot; (id: secao-abertura).')">
+  ...
 </div>
 ```
 
-```js
-const alteracoes = {}; // id da seção -> texto pedido pelo usuário
+Use (A) por padrão — é o caminho mais comum, funciona em qualquer artifact HTML salvo ou baixado. Só use (B) quando o pedido for explicitamente para gerar o documento como visual inline via o Visualizer.
 
-document.querySelectorAll('.secao').forEach(div => {
-  // rótulo que aparece no hover
-  const rotulo = document.createElement('span');
-  rotulo.className = 'rotulo-secao';
-  rotulo.textContent = div.dataset.nomeSecao || div.id;
-  div.appendChild(rotulo);
+## Passo 4 — Sumário com âncoras (opcional, para documentos longos)
 
-  div.addEventListener('click', (e) => {
-    // clique dentro da própria caixa de anotação não deve reabrir/fechar
-    if (e.target.closest('.anotacao')) return;
-    alternarAnotacao(div);
-  });
-});
+Como a folha é uma página só (Passo 1) e não tem abas, a forma de navegar num documento longo é um pequeno sumário no topo com links âncora apontando para os IDs das seções — sem duplicar a navegação com JS:
 
-function alternarAnotacao(div) {
-  let caixa = div.querySelector('.anotacao');
-  if (caixa) { caixa.remove(); return; }
+```html
+<style>
+  html { scroll-behavior: smooth; }
+  .sumario {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    font-family: sans-serif;
+    font-size: 12px;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #ddd;
+  }
+  .sumario a { color: #7C3AED; text-decoration: none; }
+  .sumario a:hover { text-decoration: underline; }
+  @media print { .sumario { display: none; } } /* é uma ajuda de tela, não faz parte do documento impresso */
+</style>
 
-  caixa = document.createElement('div');
-  caixa.className = 'anotacao';
-  caixa.innerHTML = `<textarea rows="2" placeholder="O que você quer mudar aqui?"></textarea>`;
-  div.appendChild(caixa);
-
-  const textarea = caixa.querySelector('textarea');
-  textarea.value = alteracoes[div.id] || '';
-  textarea.focus();
-  textarea.addEventListener('input', () => {
-    const texto = textarea.value.trim();
-    if (texto) {
-      alteracoes[div.id] = texto;
-      div.classList.add('marcada');
-    } else {
-      delete alteracoes[div.id];
-      div.classList.remove('marcada');
-    }
-    atualizarPainel();
-  });
-}
-
-function atualizarPainel() {
-  const painel = document.getElementById('painel-alteracoes');
-  const lista = document.getElementById('lista-alteracoes');
-  const ids = Object.keys(alteracoes);
-  lista.innerHTML = ids.map(id => {
-    const nome = document.getElementById(id)?.dataset.nomeSecao || id;
-    return `<li><strong>${nome}</strong><br>${alteracoes[id]}</li>`;
-  }).join('');
-  painel.style.display = ids.length ? 'block' : 'none';
-}
-
-function copiarAlteracoes() {
-  const linhas = Object.entries(alteracoes)
-    .map(([id, texto]) => `- ${id}: ${texto}`);
-  const texto = linhas.join('\n');
-  navigator.clipboard?.writeText(texto);
-  alert('Alterações copiadas. Cole na conversa para pedir a revisão dessas partes.');
-}
+<nav class="sumario">
+  <a href="#secao-objetivos">Objetivos</a>
+  <a href="#secao-materiais">Materiais</a>
+  <a href="#secao-etapas">Etapas</a>
+  <a href="#secao-avaliacao">Avaliação</a>
+</nav>
 ```
 
-## 4. Montagem do arquivo final
+Use só quando o documento tiver várias seções (a partir de ~4-5) — num ofício curto de duas seções, o sumário é ruído. O `<nav>` fica fora das `.secao`, porque ele não é conteúdo editável: clicar num link deve rolar a página, não abrir o prompt de "o que quer mudar".
 
-Um único arquivo `.html` autocontido: `<style>` no `<head>`, o `<div
-class="folha-a4">` com as seções no `<body>`, e o `<script>` no fim do
-`<body>`. Não usar frameworks — é HTML/CSS/JS puro, sem build.
+## Passo 5 — Estilo visual
 
-Esqueleto:
+O formato A4 + seções é a estrutura; a aparência (tipografia, cores, se é um ofício formal em preto e branco ou algo mais colorido como um plano de aula) depende do que o usuário pediu ou do exemplo que ele mandou. Se ele enviou uma imagem de referência, replique a hierarquia visual dela (título centralizado, cabeçalhos de seção em caixa alta e negrito, listas com marcadores, rodapé de fontes em fonte menor) antes de inventar um estilo novo. Para decisões de paleta e tipografia quando não há referência clara, consulte o skill `frontend-design`.
+
+## Componentes visuais comuns
+
+Alguns tipos de documento pedem elementos além de título/parágrafo/lista — uma linha do tempo de etapas, uma tabela de materiais, uma checklist de avaliação. Todos seguem a mesma regra: vivem **dentro** de uma `.secao` (o bloco inteiro é editável e comentável como uma unidade), e qualquer elemento interativo próprio (como um checkbox) precisa de `event.stopPropagation()` para não disparar o clique da seção por baixo.
+
+```html
+<div class="secao" id="secao-etapas" data-titulo="Etapas" onclick="selecionar(this)">
+  <h2>DESENVOLVIMENTO</h2>
+  <div style="display:flex; gap:8px;">
+    <div style="flex:1; padding:8px; background:#f5f3ff; border-radius:6px; font-size:12px;">
+      <b>Abertura</b><br>10 min
+    </div>
+    <div style="flex:1; padding:8px; background:#f5f3ff; border-radius:6px; font-size:12px;">
+      <b>Desenvolvimento</b><br>30 min
+    </div>
+    <div style="flex:1; padding:8px; background:#f5f3ff; border-radius:6px; font-size:12px;">
+      <b>Fechamento</b><br>10 min
+    </div>
+  </div>
+</div>
+
+<div class="secao" id="secao-avaliacao" data-titulo="Avaliação" onclick="selecionar(this)">
+  <h2>AVALIAÇÃO</h2>
+  <label style="display:block;" onclick="event.stopPropagation()">
+    <input type="checkbox"> Participação nas discussões
+  </label>
+  <label style="display:block;" onclick="event.stopPropagation()">
+    <input type="checkbox"> Produção escrita entregue
+  </label>
+</div>
+```
+
+Tabelas de materiais seguem a mesma lógica: um `<table>` comum dentro da `.secao`, sem nada de especial.
+
+## Passo 6 (opcional) — Preparar para impressão real
+
+```css
+@media print {
+  body { background: none; padding: 0; }
+  .pagina { box-shadow: none; margin: 0; page-break-after: always; } /* só importa quando há mais de uma .pagina de verdade — ver Passo 1 */
+  .secao:hover, .secao.selecionada { outline: none; background: none; }
+  .sumario { display: none; }
+}
+@page { size: A4; margin: 0; }
+```
+
+## Exemplo completo
 
 ```html
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Nome do documento</title>
+<title>Modelo de Ofício A4 Editável</title>
 <style>
-  /* CSS das seções 1 e 3 aqui */
+  :root { --accent: #7C3AED; }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: #e8e8e8;
+    margin: 0;
+    padding: 32px 16px;
+    font-family: Georgia, 'Times New Roman', serif;
+    color: #1a1a1a;
+  }
+  .sumario {
+    display: flex; flex-wrap: wrap; gap: 4px 16px;
+    font-family: sans-serif; font-size: 12px;
+    margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid #ddd;
+  }
+  .sumario a { color: var(--accent); text-decoration: none; }
+  .sumario a:hover { text-decoration: underline; }
+  .pagina {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0 auto 24px;
+    padding: 20mm 22mm;
+    background: #fff;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.18);
+  }
+  h1 { font-size: 20px; text-align: center; margin: 0 0 24px; }
+  h2 { font-size: 15px; margin: 0 0 8px; }
+  .secao {
+    position: relative;
+    padding: 10px 14px;
+    margin: 0 -14px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .secao:hover { background: rgba(124,58,237,.08); outline: 1px dashed var(--accent); }
+  .secao.selecionada { background: rgba(124,58,237,.08); outline: 2px solid var(--accent); }
+  @media print {
+    body { background: none; padding: 0; }
+    .pagina { box-shadow: none; margin: 0; page-break-after: always; }
+    .sumario { display: none; }
+  }
+  @page { size: A4; margin: 0; }
 </style>
 </head>
 <body>
 
-<div class="folha-a4">
-  <div class="secao" id="sec-titulo" data-nome-secao="Título">...</div>
-  <div class="secao" id="sec-..." data-nome-secao="...">...</div>
-  <!-- demais seções -->
-</div>
+  <div class="pagina">
+    <div class="secao" id="secao-titulo" data-titulo="Título" onclick="selecionar(this)">
+      <h1>INFORMAÇÕES SOBRE O ASSUNTO X</h1>
+    </div>
 
-<div id="painel-alteracoes">
-  <h3>Alterações marcadas</h3>
-  <ul id="lista-alteracoes"></ul>
-  <button onclick="copiarAlteracoes()">Copiar tudo</button>
-</div>
+    <nav class="sumario">
+      <a href="#secao-abertura">Abertura de processos</a>
+      <a href="#secao-tramite">Trâmite</a>
+      <a href="#secao-fontes">Fontes</a>
+    </nav>
+
+    <div class="secao" id="secao-abertura" data-titulo="Abertura de processos" onclick="selecionar(this)">
+      <h2>ABERTURA DE PROCESSOS.</h2>
+      <ul>
+        <li>Primeiro ponto sobre o procedimento.</li>
+        <li>Segundo ponto, com detalhes adicionais.</li>
+      </ul>
+    </div>
+
+    <div class="secao" id="secao-tramite" data-titulo="Trâmite" onclick="selecionar(this)">
+      <h2>TRÂMITE.</h2>
+      <p>Texto explicando como o processo deve tramitar entre setores.</p>
+    </div>
+
+    <div class="secao" id="secao-fontes" data-titulo="Fontes" onclick="selecionar(this)">
+      <p style="font-size:12px;color:#555;">Fontes: ...</p>
+    </div>
+  </div>
 
 <script>
-  /* JS da seção 3 aqui */
+  function selecionar(el) {
+    document.querySelectorAll('.secao').forEach(s => s.classList.remove('selecionada'));
+    el.classList.add('selecionada');
+  }
 </script>
 </body>
 </html>
 ```
 
-## 5. Checklist antes de entregar
+## Depois que o usuário responder
 
-- [ ] Folha mede exatamente `210mm` × `297mm` (min-height), com padding em `mm`.
-- [ ] Todo bloco de conteúdo está dentro de uma `.secao` com `id` único e `data-nome-secao`.
-- [ ] Nenhum `id` duplicado (checar visualmente ou com um `grep 'id="sec-'` no arquivo).
-- [ ] Clicar em qualquer seção abre/fecha a caixa de anotação sem recarregar a página nem afetar outras seções.
-- [ ] O painel lateral só aparece quando existe pelo menos uma alteração marcada.
-- [ ] `@media print` esconde painel, caixas de anotação e realces — a versão impressa fica limpa, só o conteúdo do documento.
-- [ ] Fontes/estilo (serifada para o corpo, negrito nos cabeçalhos, texto justificado) batem com o que o usuário pediu ou com a imagem de referência enviada.
-- [ ] Se o documento tiver mais de uma página, cada página é uma `.folha-a4` separada, com quebra de página no `@media print`.
-- [ ] CSS no mermo arquivo HTML.
+Quando o usuário voltar com algo como "na secao-tramite, deixa mais direto" (seja digitando direto no chat, seja através de outro input que te repasse o `id` clicado + a mensagem), abra o arquivo, encontre a `<div id="secao-tramite">` correspondente e edite só o conteúdo interno dela com `str_replace` — mantendo o `id`, a classe `secao` e o `data-titulo` intactos, para que a seção continue clicável e reconhecível nas próximas rodadas.
 
-## 6. Exemplo completo de referência
+## Nota: uso como arquivo de convenções compartilhado
 
-Veja `assets/exemplo-manuseio-processos.html` — reprodução completa de um
-documento institucional real (manual de manuseio de processos, com
-título, três seções e rodapé de fontes) já com todas as seções clicáveis
-e o painel de alterações funcionando. Use como ponto de partida: copie a
-estrutura e troque o conteúdo das `.secao` pelo texto do novo documento.
+Se este conteúdo também for carregado por outro agente/pipeline via linha de comando (ex.: um prompt de sistema que roda `cat geracao_html_a4.md` no início do fluxo, antes de escrever o HTML), trate as duas cópias como uma coisa só: qualquer regra nova adicionada aqui precisa ir para essa cópia também, ou os agentes que a carregam vão divergir do skill silenciosamente.

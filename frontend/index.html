@@ -30,6 +30,7 @@
           <div class="step-copy" id="step-copy"></div>
           <div id="step-content"></div>
           <p class="error-message" id="error-message" role="alert"></p>
+          <p class="agent-feedback" id="agent-feedback" role="status"></p>
         </div>
 
         <aside class="preview-card" id="html-preview-card" hidden>
@@ -38,7 +39,10 @@
               <p class="eyebrow">DOCUMENTO ATUAL</p>
               <h2>HTML.html</h2>
             </div>
-            <a id="html-open-link" href="#" target="_blank" rel="noopener">Abrir</a>
+            <div class="preview-actions">
+              <a id="html-open-link" href="#" target="_blank" rel="noopener">Abrir</a>
+              <button class="pdf-button" id="generate-pdf-button" type="button">Gerar PDF ↓</button>
+            </div>
           </div>
           <iframe id="html-preview" title="Pré-visualização do HTML gerado"></iframe>
           <div class="html-edit-panel" id="html-edit-panel" hidden>
@@ -48,6 +52,16 @@
             <div class="attachment-row"><button class="clip-button" id="html-attach-button" type="button" title="Anexar arquivo">📎</button><span id="html-file-name"></span><input id="html-file-input" type="file" hidden /></div>
             <button class="primary-button" id="html-edit-submit" type="button">Enviar todas as melhorias ↑</button>
           </div>
+        </aside>
+
+        <aside class="preview-card document-preview-card" id="document-preview-card" hidden>
+          <div class="preview-heading">
+            <div>
+              <p class="eyebrow">DOCUMENTO DO AGENTE</p>
+              <h2 id="document-preview-title">planning.json</h2>
+            </div>
+          </div>
+          <div id="document-preview-content" class="document-preview-content"></div>
         </aside>
 
       </section>
