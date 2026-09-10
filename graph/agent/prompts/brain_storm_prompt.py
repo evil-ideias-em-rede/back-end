@@ -31,6 +31,7 @@ outros arquivos.
 """.strip()
 
 
+
 BRAINSTORM_PROMPT_TO_DEBATE = f"""
 Você é o agente de BRAINSTORM para preparar um futuro ROTEIRO DE DEBATE em
 educação política e cidadania.
