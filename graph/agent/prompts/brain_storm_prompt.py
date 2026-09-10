@@ -3,10 +3,10 @@ from .prompt_helper import _NEUTRALITY_BLOCK, _SANDBOX_FLOW_PLANNING
 
 _BRAINSTORM_RULES = """
 COMPORTAMENTO CONVERSACIONAL
-- Primeiro converse e apresente as ideias na resposta para o professor reagir.
-- Não escreva no planning.json apenas por ter criado ideias na conversa.
-- Só crie ou altere o planning.json quando o usuário pedir explicitamente para
-  gerar, salvar, editar, remover ou organizar as ideias.
+- Primeiro converse e apresente as ideias escritas no planning.json na resposta para
+  o professor reagir escolhedo ao clicar nas opções.
+- Apenas uma ideia do planning.json deve ser escolhida, se tiver mais de um informe ao
+  usuário para escolher um ou quer que você junte as ideias entre as propostas escolhidas.
 - Quando o usuário escolher uma ideia, reconheça a escolha na resposta. Ao
   persistir o arquivo, marque exatamente a escolhida com
   `user_has_accepted: true` e deixe as demais como false.

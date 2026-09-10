@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Awaitable, Callable, Literal
 import json
 from pathlib import Path
@@ -24,6 +25,7 @@ AgentName = Literal[
 class WorkflowMessageIn(BaseModel):
     text: str = Field(min_length=1, max_length=20000)
     agent_name: AgentName
+    hidden: bool = False
 
 
 class WorkflowAdvanceIn(BaseModel):
@@ -172,7 +174,7 @@ def _workflow_artifacts(session_id: str, agent_name: AgentName) -> dict:
     if agent_name == "brainstorm":
         filename = "planning.json"
     elif agent_name == "specification":
-        filename = "specification.json"
+        filename = "SPECIFICATION.md"
     elif agent_name in {"debate", "generic", "lesson_plan", "political_leteracy"}:
         filename = "HTML.html"
     else:
@@ -186,6 +188,29 @@ def _workflow_artifacts(session_id: str, agent_name: AgentName) -> dict:
         return {"html_url": url, "artifact_name": filename, "artifact_url": url}
     url = f"/api/workflow/sessions/{session_id}/{filename}"
     return {"artifact_name": filename, "artifact_url": url}
+
+
+def _has_brainstorm_conversation_after(path: Path, session_id: str) -> bool:
+    """Confirma conversa ou resposta do agente depois do planning.json."""
+    try:
+        file_timestamp = path.stat().st_mtime
+    except OSError:
+        return False
+
+    for message in memory_store.messages(session_id):
+        if message.get("agent_name") != "brainstorm":
+            continue
+        is_visible_user = message.get("role") == "user" and message.get("hidden") is not True
+        is_agent_response = message.get("role") == "assistant"
+        if not (is_visible_user or is_agent_response):
+            continue
+        try:
+            message_timestamp = datetime.fromisoformat(message["created_at"]).timestamp()
+        except (KeyError, TypeError, ValueError, OverflowError):
+            continue
+        if message_timestamp > file_timestamp:
+            return True
+    return False
 
 
 async def _stream_graph_response(
@@ -233,7 +258,13 @@ async def _run_streamed_message(
     if not text:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="A mensagem não pode ficar vazia")
 
-    memory_store.add_message(session_id, role="user", content=text, agent_name=body.agent_name)
+    memory_store.add_message(
+        session_id,
+        role="user",
+        content=text,
+        agent_name=body.agent_name,
+        hidden=body.hidden,
+    )
     state = _workflow_state(session, session_id, text, body.agent_name)
     reply_text = await _stream_graph_response(state, _graph_config(session_id), emit)
     reply = memory_store.add_message(
@@ -252,14 +283,14 @@ async def _run_streamed_message(
 
 
 def _advance_instruction(from_agent: str) -> str:
-    required_file = "planning.json" if from_agent == "brainstorm" else "specification.json"
+    required_file = "planning.json" if from_agent == "brainstorm" else "SPECIFICATION.md"
     return (
         "O usuário clicou no botão para avançar para o próximo agente. "
         "Esta é uma solicitação real do usuário e sua resposta será exibida diretamente no chat do frontend. "
         "Responda em português, de forma clara e objetiva, sem mencionar instruções internas do sistema. "
         f"Verifique se {required_file} está completo no sandbox. "
         "Para planning.json, só considere pronto quando houver exatamente uma ideia com user_has_accepted igual a true. "
-        "Para specification.json, só considere pronto quando houver um objeto JSON válido e não vazio. "
+        "Para SPECIFICATION.md, só considere pronto quando houver um Markdown não vazio. "
         f"Se não existir ou estiver incompleto, informe quais dados faltam, mas não cite nomes de arquivos. "
         f"Se houver informações suficientes, gere ou atualize {required_file}, leia o arquivo novamente, "
         "se o usuário já tiver escolhido uma ideia, marque exatamente essa ideia como aceita, "
@@ -268,9 +299,11 @@ def _advance_instruction(from_agent: str) -> str:
 
 
 def _advance_allowed(session_id: str, from_agent: str) -> bool:
-    filename = "planning.json" if from_agent == "brainstorm" else "specification.json"
+    filename = "planning.json" if from_agent == "brainstorm" else "SPECIFICATION.md"
     path = workspace_for_chat("workflow-demo-user", f"workflow-{session_id}") / "sandbox" / filename
     if from_agent == "brainstorm":
+        if not _has_brainstorm_conversation_after(path, session_id):
+            return False
         try:
             planning = json.loads(path.read_text(encoding="utf-8"))
             return (
@@ -283,9 +316,8 @@ def _advance_allowed(session_id: str, from_agent: str) -> bool:
         except (OSError, UnicodeDecodeError, json.JSONDecodeError):
             return False
     try:
-        specification = json.loads(path.read_text(encoding="utf-8"))
-        return isinstance(specification, dict) and bool(specification)
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return path.is_file() and bool(path.read_text(encoding="utf-8").strip())
+    except (OSError, UnicodeDecodeError):
         return False
 
 
@@ -348,6 +380,7 @@ async def workflow_socket(websocket: WebSocket, session_id: str):
                 body = WorkflowMessageIn(
                     text=_advance_instruction(advance.from_agent),
                     agent_name=advance.from_agent,
+                    hidden=True,
                 )
                 payload = await _run_streamed_message(session_id, body, emit)
                 payload["allowed"] = _advance_allowed(session_id, advance.from_agent)
@@ -379,6 +412,7 @@ async def send_workflow_message(session_id: str, body: WorkflowMessageIn):
         role="user",
         content=text,
         agent_name=body.agent_name,
+        hidden=body.hidden,
     )
 
     state = {
@@ -438,7 +472,11 @@ async def advance_workflow(session_id: str, body: WorkflowAdvanceIn):
 
     reply_data = await send_workflow_message(
         session_id,
-        WorkflowMessageIn(text=_advance_instruction(body.from_agent), agent_name=body.from_agent),
+        WorkflowMessageIn(
+            text=_advance_instruction(body.from_agent),
+            agent_name=body.from_agent,
+            hidden=True,
+        ),
     )
     allowed = _advance_allowed(session_id, body.from_agent)
     if allowed:

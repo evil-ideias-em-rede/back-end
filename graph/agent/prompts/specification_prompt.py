@@ -3,12 +3,12 @@ from .prompt_helper import _NEUTRALITY_BLOCK
 
 _SPECIFICATION_FLOW = """
 FLUXO OBRIGATÓRIO COM execute_bash
-1. Trabalhe exclusivamente no arquivo `specification.json`.
-2. Leia o `specification.json` antes de editar uma especificação existente.
+1. Trabalhe exclusivamente no arquivo `SPECIFICATION.md`.
+2. Leia o `SPECIFICATION.md` antes de editar uma especificação existente.
 3. Só escreva ou atualize o arquivo quando o usuário pedir explicitamente para
    gerar, fechar ou editar a especificação.
-4. Depois de escrever, leia o `specification.json` novamente e confirme que o
-   JSON está válido e completo.
+4. Depois de escrever, leia o `SPECIFICATION.md` novamente e confirme que o
+   Markdown está completo e bem estruturado.
 5. Não crie, leia, altere, execute ou exclua nenhum outro arquivo.
 """.strip()
 
@@ -19,19 +19,16 @@ COMPORTAMENTO CONVERSACIONAL
   objetivas e responda em texto; não escreva o arquivo ainda.
 - Não faça todas as perguntas de uma vez. Priorize o que altera a estrutura da
   atividade e assuma apenas detalhes de baixo risco, informando a suposição.
-- Só gere o specification.json quando o usuário pedir explicitamente para
+- Só gere o SPECIFICATION.md quando o usuário pedir explicitamente para
   gerar, fechar, salvar ou editar a especificação.
 - Se o arquivo já existir e o usuário pedir uma mudança, leia-o e altere apenas
   o que foi solicitado, preservando o restante.
 
-FORMATO DO specification.json
-Quando for solicitado a escrever, produza um objeto JSON válido com pelo menos
-estas chaves:
-`tema`, `objetivos`, `formato_dinamica`, `tempo`, `materiais` e
-`avaliacao_encerramento`.
-Inclua também os campos específicos da tarefa abaixo. Use listas e objetos
-quando isso tornar a informação mais clara; não use comentários nem markdown
-dentro do JSON. Não invente fatos, estatísticas, fontes ou códigos curriculares.
+FORMATO DO SPECIFICATION.md
+Quando for solicitado a escrever, produza um Markdown bem estruturado com pelo
+menos as seções: tema e recorte, objetivos, formato/dinâmica, tempo, materiais
+e avaliação/encerramento. Inclua também as seções específicas da tarefa abaixo.
+Não invente fatos, estatísticas, fontes ou códigos curriculares.
 """.strip()
 
 
@@ -48,8 +45,8 @@ de conduta, evidências/fontes a consultar, materiais e objetivo de
 aprendizagem. Pergunte também como será feita a reflexão final, sempre focada
 na qualidade dos argumentos e das evidências, não em declarar um vencedor.
 
-Ao gerar o JSON, inclua campos como `pergunta_central`, `papeis`, `regras`,
-`rodadas`, `fontes_evidencias` e `reflexao_final`. Garanta simetria: os dois
+Ao gerar o Markdown, inclua seções como "Pergunta central", "Papéis", "Regras",
+"Rodadas", "Fontes e evidências" e "Reflexão final". Garanta simetria: os dois
 grupos devem receber a mesma quantidade e o mesmo nível de detalhamento de
 argumentos e perguntas de réplica. Não escreva argumentos finais enviesados
 antes de o professor definir que isso faz parte da especificação.
@@ -72,8 +69,8 @@ estratégia principal, etapas desejadas, forma de avaliação e adaptações par
 ritmos ou necessidades diferentes. Se o professor não indicar duração,
 considere 50 minutos e deixe essa suposição explícita.
 
-Ao gerar o JSON, inclua também `publico_alvo`, `conhecimentos_previos`,
-`etapas`, `avaliacao`, `adaptacoes` e `referencias`. As etapas devem poder ser
+Ao gerar o Markdown, inclua também as seções "Público-alvo", "Conhecimentos
+prévios", "Etapas", "Avaliação", "Adaptações" e "Referências". As etapas devem poder ser
 convertidas em uma sequência de aula com tempos estimados. Só inclua um código
 da BNCC se o usuário fornecer um ou se houver certeza sobre sua existência e
 pertinência.
@@ -97,9 +94,9 @@ perguntas de interpretação e armadilhas de leitura que deverão ser discutidas
 Pergunte pelos dados exatos se eles já existirem; caso contrário, registre que
 a fonte e os números ainda precisam ser validados pelo professor.
 
-Ao gerar o JSON, inclua também `pergunta_orientadora`, `dados`, `fonte_dados`,
-`metodo_leitura`, `perguntas_interpretacao`, `armadilhas_leitura` e
-`glossario`. Em `dados`, não invente valores: descreva os campos necessários
+Ao gerar o Markdown, inclua também as seções "Pergunta orientadora", "Dados",
+"Fonte dos dados", "Método de leitura", "Perguntas de interpretação",
+"Armadilhas de leitura" e "Glossário". Em "Dados", não invente valores: descreva os campos necessários
 ou use somente números fornecidos e identificados pelo usuário.
 
 {_SPECIFICATION_RULES}
@@ -119,8 +116,8 @@ materiais ou fontes, instruções principais, produto esperado, adaptações e
 critério de avaliação/encerramento. Se o formato ainda estiver aberto, ofereça
 uma recomendação curta e peça confirmação antes de fechar a especificação.
 
-Ao gerar o JSON, inclua também `publico_alvo`, `tamanho_turma`, `etapas`,
-`produto_esperado`, `adaptacoes` e `criterios_avaliacao`.
+Ao gerar o Markdown, inclua também as seções "Público-alvo", "Tamanho da
+turma", "Etapas", "Produto esperado", "Adaptações" e "Critérios de avaliação".
 
 {_SPECIFICATION_RULES}
 {_NEUTRALITY_BLOCK}

@@ -1,8 +1,10 @@
+import json
 import re
 from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
 
 from db.memory_store import memory_store
 from graph.tools.sandbox.workdir import BASE_WORKDIRS
@@ -14,6 +16,10 @@ MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 SANDBOX_ID_PATTERN = re.compile(r"^[a-f0-9]{64}$")
 
 router = APIRouter(prefix="/api", tags=["sandbox"])
+
+
+class PlanningSelectionIn(BaseModel):
+    index: int = Field(ge=0)
 
 
 def _session_or_404(session_id: str) -> None:
@@ -57,6 +63,71 @@ def _workflow_sandbox_dir(session_id: str) -> Path:
     if not sandbox_dir.is_dir():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sandbox não encontrado")
     return sandbox_dir
+
+
+@router.post("/workflow/sessions/{session_id}/planning/select")
+async def select_workflow_planning_item(session_id: str, selection: PlanningSelectionIn):
+    """Marca a proposta escolhida no planning.json da sessão."""
+    sandbox_dir = _workflow_sandbox_dir(session_id)
+    planning_path = sandbox_dir / "planning.json"
+
+    if planning_path.is_symlink() or not planning_path.is_file():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="planning.json não existe ou está inválido",
+        )
+
+    try:
+        planning = json.loads(planning_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="planning.json não contém um JSON válido",
+        ) from exc
+
+    if not isinstance(planning, list):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="planning.json deve conter uma lista de ideias",
+        )
+    if selection.index >= len(planning):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Ideia não encontrada",
+        )
+    if not isinstance(planning[selection.index], dict):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="A ideia selecionada está em formato inválido",
+        )
+
+    already_selected = planning[selection.index].get("user_has_accepted") is True and sum(
+        isinstance(item, dict) and item.get("user_has_accepted") is True
+        for item in planning
+    ) == 1
+    if not already_selected:
+        for item in planning:
+            if isinstance(item, dict):
+                item["user_has_accepted"] = False
+        planning[selection.index]["user_has_accepted"] = True
+
+        try:
+            planning_path.write_text(
+                json.dumps(planning, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+        except OSError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Não foi possível salvar a ideia escolhida",
+            ) from exc
+
+    return {
+        "session_id": session_id,
+        "selected_index": selection.index,
+        "changed": not already_selected,
+        "planning": planning,
+    }
 
 
 @router.post("/sandboxes/{sandbox_id}/html")

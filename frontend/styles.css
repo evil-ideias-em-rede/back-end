@@ -82,7 +82,10 @@ textarea:focus { border-color: var(--purple); box-shadow: 0 0 0 3px var(--lavend
 .document-preview-content { flex: 1; min-height: 0; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; padding: 16px; background: #fcfcfa; }
 .artifact-markdown { margin: 0; color: #55544f; font: inherit; font-size: 13px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
 .planning-list { display: grid; gap: 12px; }
-.planning-item { border: 1px solid var(--line); border-radius: 10px; padding: 13px; background: #fff; }
+.planning-item { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 13px; background: #fff; color: inherit; font: inherit; text-align: left; cursor: pointer; transition: border-color .15s ease, background .15s ease, box-shadow .15s ease; }
+.planning-item:hover, .planning-item:focus-visible { border-color: var(--purple); box-shadow: 0 0 0 3px rgba(96, 80, 220, .12); outline: none; }
+.planning-item.selected { border-color: var(--purple); background: var(--lavender); }
+.planning-hint { margin: 0 0 10px; color: #6c6a64; font-size: 12px; }
 .planning-item h3 { margin: 0 0 7px; color: var(--ink); font-size: 15px; }
 .planning-item p { margin: 0 0 8px; color: #55544f; font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
 .planning-item p:last-child { margin-bottom: 0; }

@@ -1,7 +1,7 @@
 from .base import run_agent
 from .prompts.specification_prompt import get_specification
 from graph.tools.sandbox.restricted_file import restricted_file_tool
-execute_specification_bash = restricted_file_tool("specification.json")
+execute_specification_bash = restricted_file_tool("SPECIFICATION.md")
 
 
 async def specification_node(state, config=None):

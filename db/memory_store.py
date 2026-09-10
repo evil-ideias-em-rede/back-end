@@ -48,6 +48,7 @@ class InMemoryWorkflowStore:
         role: str,
         content: str,
         agent_name: str | None = None,
+        hidden: bool = False,
     ) -> dict:
         with self._lock:
             session = self._sessions.get(session_id)
@@ -58,6 +59,7 @@ class InMemoryWorkflowStore:
                 "role": role,
                 "content": content,
                 "agent_name": agent_name,
+                "hidden": hidden,
                 "created_at": _now(),
             }
             session["messages"].append(message)

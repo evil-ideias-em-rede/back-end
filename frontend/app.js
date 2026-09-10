@@ -7,6 +7,7 @@ const state = {
   advanceFeedback: "",
   streamingMessage: null,
   artifacts: {},
+  planningNeedsConversation: false,
 };
 
 const stepCopy = document.querySelector("#step-copy");
@@ -168,12 +169,31 @@ async function refreshWorkflowArtifacts(data) {
   const response = await fetch(`${data.artifact_url}?v=${Date.now()}`);
   if (!response.ok) return;
   const content = await response.text();
+  const previousContent = state.artifacts[data.artifact_name];
   state.artifacts[data.artifact_name] = content;
   if (data.artifact_name === "HTML.html") {
     updateHtmlPreview(data.html_url || data.artifact_url);
   } else {
+    if (data.artifact_name === "planning.json" && previousContent !== content) {
+      // A resposta que acabou de chegar já é a conversa que confirmou essa
+      // atualização. O bloqueio permanece somente durante uma seleção pendente.
+      state.planningNeedsConversation = false;
+    }
     updateDocumentPreview(data.artifact_name, content);
   }
+}
+
+async function refreshSpecificationArtifact() {
+  if (!state.sessionId) return;
+  const response = await fetch(`/api/workflow/sessions/${state.sessionId}/SPECIFICATION.md?v=${Date.now()}`);
+  if (!response.ok) {
+    documentPreviewCard.hidden = true;
+    workspace.classList.remove("has-document-preview");
+    return;
+  }
+  const content = await response.text();
+  state.artifacts["SPECIFICATION.md"] = content;
+  updateDocumentPreview("SPECIFICATION.md", content);
 }
 
 function updateHtmlPreview(url) {
@@ -197,15 +217,18 @@ function updateDocumentPreview(filename, content) {
       const planning = JSON.parse(content);
       const items = Array.isArray(planning) ? planning : [];
       documentPreviewContent.innerHTML = items.length
-        ? `<div class="planning-list">${items.map((item) => `
-            <article class="planning-item">
+        ? `<p class="planning-hint">Clique em uma proposta para escolhê-la.</p><div class="planning-list">${items.map((item, index) => `
+            <button type="button" class="planning-item ${item.user_has_accepted === true ? "selected" : ""}" data-planning-index="${index}" aria-pressed="${item.user_has_accepted === true}">
               ${item.user_has_accepted === true ? '<span class="planning-status">Ideia aceita</span>' : ""}
               <h3>${escapeHtml(item.title || "Ideia sem título")}</h3>
               <p>${escapeHtml(item.description || "")}</p>
               ${item.long_description ? `<p>${escapeHtml(item.long_description)}</p>` : ""}
-            </article>
+            </button>
           `).join("")}</div>`
         : '<p class="artifact-markdown">Nenhuma ideia registrada ainda.</p>';
+      documentPreviewContent.querySelectorAll("[data-planning-index]").forEach((item) => {
+        item.addEventListener("click", () => selectPlanningItem(Number(item.dataset.planningIndex)));
+      });
     } catch (error) {
       documentPreviewContent.innerHTML = `<pre class="artifact-markdown">${escapeHtml(content)}</pre>`;
     }
@@ -214,6 +237,39 @@ function updateDocumentPreview(filename, content) {
   }
   documentPreviewCard.hidden = false;
   workspace.classList.add("has-document-preview");
+}
+
+async function selectPlanningItem(index) {
+  if (!state.sessionId || state.loading) return;
+  setError("");
+  setAgentFeedback("");
+  setLoading(true);
+  try {
+    const response = await fetch(`/api/workflow/sessions/${state.sessionId}/planning/select`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ index }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.detail || "Não foi possível selecionar essa proposta.");
+    const content = JSON.stringify(data.planning || [], null, 2);
+    state.artifacts["planning.json"] = content;
+    if (data.changed !== false) state.planningNeedsConversation = true;
+    updateDocumentPreview("planning.json", content);
+    const selected = data.planning[index] || {};
+    const selectedTitle = selected.title || "";
+    const selectedDescription = selected.description || "";
+    await callAgent(
+      "brainstorm",
+      `ideia escolhida pelo usuario: ${selectedTitle} ${selectedDescription}`.trim(),
+      { showUserMessage: false },
+    );
+    state.planningNeedsConversation = false;
+  } catch (error) {
+    setError(error.message);
+  } finally {
+    setLoading(false);
+  }
 }
 
 function saveHtmlEdits() {
@@ -273,7 +329,11 @@ function renderConversation(agentName) {
 }
 
 function renderChatStage({ agentName, inputLabel, placeholder, sendLabel, continueLabel }) {
-  const canContinue = hasAssistantReply(agentName);
+  const blockedByPlanningConversation = agentName === "brainstorm" && state.planningNeedsConversation;
+  const canContinue = hasAssistantReply(agentName) && !blockedByPlanningConversation;
+  const continueHint = blockedByPlanningConversation
+    ? "Aguarde a resposta do agente sobre a escolha antes de avançar."
+    : "Envie pelo menos uma mensagem antes de avançar.";
   stepContent.innerHTML = `
     <div class="stage-thread" id="stage-thread">${renderConversation(agentName)}</div>
     <label class="form-label" for="stage-input">${inputLabel}</label>
@@ -283,7 +343,7 @@ function renderChatStage({ agentName, inputLabel, placeholder, sendLabel, contin
       ${continueLabel ? `<button class="secondary-button" id="continue-button" type="button" ${canContinue ? "" : "disabled"}>${continueLabel} →</button>` : ""}
       <button class="primary-button" id="send-button" type="button">${sendLabel} ↑</button>
     </div>
-    ${continueLabel && !canContinue ? '<p class="continue-hint">Envie pelo menos uma mensagem antes de avançar.</p>' : ""}
+    ${continueLabel && !canContinue ? `<p class="continue-hint">${continueHint}</p>` : ""}
   `;
 
   document.querySelector("#send-button").addEventListener("click", () => sendStageMessage(agentName));
@@ -339,9 +399,15 @@ function renderStep() {
       <div class="actions"><button class="primary-button" id="send-button" type="button">Enviar mensagem ↑</button></div>
     `;
     document.querySelectorAll('input[name="agent"]').forEach((input) => {
-      input.addEventListener("change", (event) => {
+      input.addEventListener("change", async (event) => {
         state.activeAgent = event.target.value;
         renderStep();
+        try {
+          await sendHiddenGreeting(state.activeAgent);
+          renderStep();
+        } catch (error) {
+          setError(error.message);
+        }
       });
     });
     document.querySelector("#send-button").addEventListener("click", () => sendStageMessage(state.activeAgent));
@@ -364,11 +430,12 @@ async function createSession() {
   const session = await response.json();
   state.sessionId = session.id;
   htmlEdits = JSON.parse(localStorage.getItem(`html-edits-${state.sessionId}`) || "{}");
-  state.messages = session.messages;
+  state.messages = session.messages.filter((message) => message.hidden !== true);
   state.step = 0;
   state.activeAgent = "debate";
   state.streamingMessage = null;
   state.artifacts = {};
+  state.planningNeedsConversation = false;
   setAgentFeedback("");
   htmlPreview.src = "about:blank";
   htmlPreviewCard.hidden = true;
@@ -382,18 +449,21 @@ async function createSession() {
   renderStep();
 }
 
-async function callAgent(agentName, text) {
+async function callAgent(agentName, text, { showUserMessage = true } = {}) {
   if (!text.trim()) throw new Error("Escreva uma mensagem antes de enviar.");
   setError("");
   setAgentFeedback("");
   setLoading(true);
   const normalizedText = text.trim();
-  state.messages.push({ role: "user", content: normalizedText, agent_name: agentName });
+  if (showUserMessage) {
+    state.messages.push({ role: "user", content: normalizedText, agent_name: agentName });
+    if (agentName === "brainstorm") state.planningNeedsConversation = false;
+  }
   startStreamingMessage(agentName);
   let completedMessage;
   try {
     const data = await sendSocketRequest(
-      { type: "message", text: normalizedText, agent_name: agentName },
+      { type: "message", text: normalizedText, agent_name: agentName, hidden: !showUserMessage },
       (token) => appendStreamToken(agentName, token),
     );
     state.streamingMessage = null;
@@ -410,7 +480,16 @@ async function callAgent(agentName, text) {
   return completedMessage;
 }
 
+async function sendHiddenGreeting(agentName) {
+  try {
+    return await callAgent(agentName, "oi", { showUserMessage: false });
+  } finally {
+    setLoading(false);
+  }
+}
+
 async function requestAdvance(fromAgent) {
+  if (state.loading) return;
   setError("");
   setAgentFeedback("");
   setLoading(true);
@@ -429,9 +508,14 @@ async function requestAdvance(fromAgent) {
       setAgentFeedback(data.allowed ? (data.message.content || "") : "");
     }
     await refreshWorkflowArtifacts(data);
-    renderStep();
     if (data.allowed) {
       state.step += 1;
+      renderStep();
+      if (state.step === 1) await refreshSpecificationArtifact();
+      const nextAgent = state.step === 1 ? "specification" : state.activeAgent;
+      await sendHiddenGreeting(nextAgent);
+      renderStep();
+    } else {
       renderStep();
     }
   } catch (error) {
