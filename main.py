@@ -11,8 +11,6 @@ from routers import auth_router, chat_router, sandbox_router, workflow_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # O protótipo do fluxo usa memória e pode subir sem Postgres. As rotas
-    # legadas de chat continuam disponíveis quando o banco estiver configurado.
     try:
         await init_pool()
     except Exception as exc:
@@ -25,7 +23,7 @@ app = FastAPI(title="Chat API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # restrinja aos domínios do seu frontend em produção
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
