@@ -14,9 +14,24 @@ from graph.tools.sandbox.workdir import workspace_for_chat
 MAX_PDF_HTML_BYTES = 20 * 1024 * 1024
 PDF_PRINT_OVERRIDES = """
 <style id="workflow-pdf-overrides">
+@page {
+  size: A4;
+  margin: 0;
+}
+
 @media print {
   .pagina > .nota { display: none !important; }
-  .pagina > .secao { break-inside: avoid; page-break-inside: avoid; }
+
+  /* A seção pode continuar em outra página; seus elementos atômicos não. */
+  h1, h2, h3, h4 {
+    break-after: avoid-page;
+    page-break-after: avoid;
+  }
+  table tr, li, figure, .card, .callout, .timeline-item, .bloco,
+  .atividade, .pergunta, .destaque {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
 }
 </style>
 """

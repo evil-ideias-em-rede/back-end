@@ -7,5 +7,5 @@ __pycache__/
 .mypy_cache/
 .venv/
 venv/
-workdirs/*
-!workdirs/.gitkeep
+# Dados de runtime montados pelo compose; nunca entram na imagem.
+workdirs/
