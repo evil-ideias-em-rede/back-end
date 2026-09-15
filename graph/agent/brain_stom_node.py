@@ -5,7 +5,7 @@ from graph.tools.sandbox.restricted_file import restricted_file_tool
 execute_planning_bash = restricted_file_tool("planning.json", formatter=format_planning_file)
 
 
-async def brain_storm_node(state, config=None):
+async def brainstorm_node(state, config=None):
     agent_name = state.get('agent_name')
     print(f"Brain storm is executing for {agent_name}...")
     restricted_prompt = get_brainstorm(agent_name).replace("execute_bash", execute_planning_bash.name)

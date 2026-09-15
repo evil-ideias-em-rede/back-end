@@ -3,7 +3,7 @@ from langgraph.graph import MessagesState
 from langgraph.prebuilt.tool_node import ToolNode
 from langgraph.graph import END, START, StateGraph
 
-from .agent.brain_stom_node import brain_storm_node, execute_planning_bash
+from .agent.brain_stom_node import brainstorm_node, execute_planning_bash
 from .agent.specification_node import execute_specification_bash, specification_node
 from .agent.debate_outline_node import debate_outline_node
 from .agent.generic_activity_node import generic_activity_node
@@ -12,28 +12,26 @@ from .agent.political_leteracy_node import political_leteracy_node
 from .tools.sandbox.execute_bash import execute_bash
 
 
-AGENT_NAMES = {
-    "brainstorm": "brainstorm_node",
-    "specification": "specification_node",
-    # Mantém compatibilidade com o typo usado no script de teste.
-    "specfication": "specification_node",
-    "lesson_plan": "lesson_plan_node",
-    "lesson-plan": "lesson_plan_node",
-    "debate": "debate_outline_node",
-    "debate_outline": "debate_outline_node",
-    "political_leteracy": "political_leteracy_node",
-    "political-literacy": "political_leteracy_node",
-    "generic": "generic_activity_node",
-    "generic_activity": "generic_activity_node",
-}
+AGENTS = [
+    {"agent_name": "brainstorm_node", "agent_function": brainstorm_node},
+    {"agent_name": "specification_node", "agent_function": specification_node},
+    {"agent_name": "lesson_plan_node", "agent_function": lesson_plan_node},
+    {"agent_name": "debate_outline_node", "agent_function": debate_outline_node},
+    {"agent_name": "political_leteracy_node", "agent_function": political_leteracy_node},
+    {"agent_name": "generic_activity_node", "agent_function": generic_activity_node}
+]
 
+AGENT_NAMES = {}
+for agent in AGENTS:
+    AGENT_NAMES[agent["agent_name"]] = agent
 
 def resolve_agent_name(agent_name: str) -> str:
     normalized = agent_name.strip().lower()
-    try: return AGENT_NAMES[normalized]
-    except KeyError as exc:
-        supported = "brainstorm, specification, lesson_plan, debate, political_leteracy, generic"
-        raise ValueError(f"agent_name inválido. Use um destes valores: {supported}") from exc
+    if normalized not in AGENT_NAMES:
+        supported = ", ".join(list(AGENT_NAMES.keys()))
+        raise ValueError(f"agent_name inválido. Use um destes valores: {supported}")
+
+    return normalized
 
 
 def router_state(state) -> dict:
@@ -54,16 +52,9 @@ class ChatGraphState(MessagesState):
 
 graph = StateGraph(ChatGraphState)
 graph.add_node("router", router_state)
-graph.add_node("brainstorm_node", brain_storm_node)
-graph.add_node("specification_node", specification_node)
-graph.add_node("lesson_plan_node", lesson_plan_node)
-graph.add_node("debate_outline_node", debate_outline_node)
-graph.add_node("political_leteracy_node", political_leteracy_node)
-graph.add_node("generic_activity_node", generic_activity_node)
-graph.add_node(
-    "tools",
-    ToolNode([execute_bash, execute_planning_bash, execute_specification_bash]),
-)
+for agent_name, agent in AGENT_NAMES.items():
+    graph.add_node(agent_name, agent["agent_function"])
+graph.add_node("tools", ToolNode([execute_bash, execute_planning_bash, execute_specification_bash]))
 graph.add_edge(START, "router")
 
 
@@ -78,15 +69,9 @@ def route_after_agent(state):
     return "tools"
 
 
-AGENT_NODES = {
-    "brainstorm_node": "brainstorm_node",
-    "specification_node": "specification_node",
-    "lesson_plan_node": "lesson_plan_node",
-    "debate_outline_node": "debate_outline_node",
-    "political_leteracy_node": "political_leteracy_node",
-    "generic_activity_node": "generic_activity_node",
-}
-
+AGENT_NODES = {}
+for agent in AGENT_NAMES:
+    AGENT_NODES[agent] = agent
 
 graph.add_conditional_edges("router", route_to_agent, AGENT_NODES)
 for node_name in AGENT_NODES:
