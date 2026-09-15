@@ -3,7 +3,6 @@ from pathlib import Path
 
 
 def format_planning_file(work_dir: str | Path) -> str | None:
-    """Formata planning.json e retorna um erro legível sem interromper o comando."""
     planning_file = Path(work_dir) / "planning.json"
     if not planning_file.is_file():
         return None
