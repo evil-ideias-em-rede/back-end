@@ -55,7 +55,6 @@ fontes plausíveis de força equivalente.
 {_SANDBOX_FLOW_PLANNING}
 """.strip()
 
-
 BRAINSTORM_PROMPT_TO_LESSON_PLAN = f"""
 Você é o agente de BRAINSTORM para preparar um futuro PLANO DE AULA de
 educação política e cidadania.
