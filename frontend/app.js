@@ -29,6 +29,11 @@ const generatePdfButton = document.querySelector("#generate-pdf-button");
 const documentPreviewCard = document.querySelector("#document-preview-card");
 const documentPreviewTitle = document.querySelector("#document-preview-title");
 const documentPreviewContent = document.querySelector("#document-preview-content");
+const audienciaDrawer = document.querySelector("#audiencia-drawer");
+const audienciaBackdrop = document.querySelector("#audiencia-backdrop");
+const audienciaDrawerTitle = document.querySelector("#audiencia-drawer-title");
+const audienciaDrawerContent = document.querySelector("#audiencia-drawer-content");
+const audienciaDrawerClose = document.querySelector("#audiencia-drawer-close");
 let selectedHtmlId = null;
 let htmlEdits = {};
 let pendingHtmlFile = null;
@@ -36,6 +41,41 @@ let pendingChatFile = null;
 let workflowSocket = null;
 let socketConnectPromise = null;
 let activeSocketRequest = null;
+
+function closeAudienciaDrawer() {
+  audienciaDrawer.hidden = true;
+  audienciaBackdrop.hidden = true;
+  audienciaDrawer.setAttribute("aria-hidden", "true");
+}
+
+function showAudienciaDrawer(audiencia) {
+  if (!audiencia || typeof audiencia !== "object") return;
+  audienciaDrawerTitle.textContent = audiencia.titulo || audiencia.id || "Audiência";
+  const participantes = Array.isArray(audiencia.participantes) ? audiencia.participantes : [];
+  const discursos = Array.isArray(audiencia.discursos) ? audiencia.discursos : [];
+  audienciaDrawerContent.innerHTML = `
+    <p class="audiencia-summary">${escapeHtml(audiencia.resumo || "Nenhum resumo disponível.")}</p>
+    <dl class="audiencia-meta">
+      <div><dt>ID</dt><dd>${escapeHtml(audiencia.id || "—")}</dd></div>
+      <div><dt>Data</dt><dd>${escapeHtml(audiencia.data || "—")}</dd></div>
+      <div><dt>Casa</dt><dd>${escapeHtml(audiencia.casa || "—")}</dd></div>
+      <div><dt>Comissão</dt><dd>${escapeHtml(audiencia.comissao || "—")}</dd></div>
+    </dl>
+    <section class="audiencia-section"><h3>Participantes (${participantes.length})</h3>
+      <ul class="audiencia-list">${participantes.map((item) => `<li><strong>${escapeHtml(item.nome || "Participante")}</strong>${item.papel ? ` · ${escapeHtml(item.papel)}` : ""}${item.partido ? ` (${escapeHtml(item.partido)})` : ""}</li>`).join("") || "<li>Não informado.</li>"}</ul>
+    </section>
+    <section class="audiencia-section"><h3>Discursos (${discursos.length})</h3>
+      <ul class="audiencia-list">${discursos.map((item) => `<li><strong>${escapeHtml(item.orador || "Orador")}</strong>: ${escapeHtml(item.texto || "")}</li>`).join("") || "<li>Não informado.</li>"}</ul>
+    </section>
+    <section class="audiencia-section"><h3>Conteúdo recebido</h3><pre class="audiencia-json">${escapeHtml(JSON.stringify(audiencia, null, 2))}</pre></section>
+  `;
+  audienciaDrawer.hidden = false;
+  audienciaBackdrop.hidden = false;
+  audienciaDrawer.setAttribute("aria-hidden", "false");
+}
+
+audienciaDrawerClose.addEventListener("click", closeAudienciaDrawer);
+audienciaBackdrop.addEventListener("click", closeAudienciaDrawer);
 
 const AGENTS = {
   debate: ["Debate", "Constrói uma proposta de debate com argumentos e mediação."],
@@ -183,19 +223,6 @@ async function refreshWorkflowArtifacts(data) {
   }
 }
 
-async function refreshSpecificationArtifact() {
-  if (!state.sessionId) return;
-  const response = await fetch(`/api/workflow/sessions/${state.sessionId}/SPECIFICATION.md?v=${Date.now()}`);
-  if (!response.ok) {
-    documentPreviewCard.hidden = true;
-    workspace.classList.remove("has-document-preview");
-    return;
-  }
-  const content = await response.text();
-  state.artifacts["SPECIFICATION.md"] = content;
-  updateDocumentPreview("SPECIFICATION.md", content);
-}
-
 function updateHtmlPreview(url) {
   if (!url) return;
   documentPreviewCard.hidden = true;
@@ -218,16 +245,16 @@ function updateDocumentPreview(filename, content) {
       const items = Array.isArray(planning) ? planning : [];
       documentPreviewContent.innerHTML = items.length
         ? `<p class="planning-hint">Clique em uma proposta para escolhê-la.</p><div class="planning-list">${items.map((item, index) => `
-            <button type="button" class="planning-item ${item.user_has_accepted === true ? "selected" : ""}" data-planning-index="${index}" aria-pressed="${item.user_has_accepted === true}">
+            <button type="button" class="planning-item ${item.user_has_accepted === true ? "selected" : ""}" data-planning-id="${escapeHtml(String(item.id ?? item.audiencia_id ?? item.session_id ?? index))}" aria-pressed="${item.user_has_accepted === true}">
               ${item.user_has_accepted === true ? '<span class="planning-status">Ideia aceita</span>' : ""}
-              <h3>${escapeHtml(item.title || "Ideia sem título")}</h3>
-              <p>${escapeHtml(item.description || "")}</p>
+              <h3>${escapeHtml(item.titulo || item.title || "Ideia sem título")}</h3>
+              <p>${escapeHtml(item.resumo || item.description || "")}</p>
               ${item.long_description ? `<p>${escapeHtml(item.long_description)}</p>` : ""}
             </button>
           `).join("")}</div>`
         : '<p class="artifact-markdown">Nenhuma ideia registrada ainda.</p>';
-      documentPreviewContent.querySelectorAll("[data-planning-index]").forEach((item) => {
-        item.addEventListener("click", () => selectPlanningItem(Number(item.dataset.planningIndex)));
+      documentPreviewContent.querySelectorAll("[data-planning-id]").forEach((item) => {
+        item.addEventListener("click", () => selectPlanningItem(item.dataset.planningId));
       });
     } catch (error) {
       documentPreviewContent.innerHTML = `<pre class="artifact-markdown">${escapeHtml(content)}</pre>`;
@@ -239,31 +266,34 @@ function updateDocumentPreview(filename, content) {
   workspace.classList.add("has-document-preview");
 }
 
-async function selectPlanningItem(index) {
+async function selectPlanningItem(planningId) {
   if (!state.sessionId || state.loading) return;
   setError("");
   setAgentFeedback("");
   setLoading(true);
   try {
-    const response = await fetch(`/api/workflow/sessions/${state.sessionId}/planning/select`, {
+    // Temporário: qualquer proposta clicada usa a audiência mock aud-001.
+    const audienciaId = "aud-001";
+    const response = await fetch(`/api/workflow/sessions/${state.sessionId}/planning/select/${audienciaId}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ index }),
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.detail || "Não foi possível selecionar essa proposta.");
     const content = JSON.stringify(data.planning || [], null, 2);
+    showAudienciaDrawer(data.audiencia);
     state.artifacts["planning.json"] = content;
     if (data.changed !== false) state.planningNeedsConversation = true;
     updateDocumentPreview("planning.json", content);
-    const selected = data.planning[index] || {};
-    const selectedTitle = selected.title || "";
-    const selectedDescription = selected.description || "";
-    await callAgent(
-      "brainstorm",
-      `ideia escolhida pelo usuario: ${selectedTitle} ${selectedDescription}`.trim(),
-      { showUserMessage: false },
-    );
+    const selected = data.audiencia || {};
+    const selectedTitle = selected.titulo || selected.title || "";
+    const selectedDescription = selected.resumo || selected.description || "";
+    if (data.changed !== false) {
+      await callAgent(
+        "brainstorm",
+        `Uma nova audiência foi escolhida e salva em audiencia.json. Leia esse arquivo com execute_bash("cat audiencia.json") e descreva para o usuário o significado, o contexto, os participantes e os principais posicionamentos dessa audiência. A ideia escolhida foi: ${selectedTitle} ${selectedDescription}`.trim(),
+        { showUserMessage: false },
+      );
+    }
     state.planningNeedsConversation = false;
   } catch (error) {
     setError(error.message);
@@ -371,15 +401,6 @@ function renderStep() {
       inputLabel: "Sua mensagem para o brainstorm",
       placeholder: "Ex.: Quero trabalhar o tema da água com uma turma do ensino fundamental...",
       sendLabel: "Enviar para o brainstorm",
-      continueLabel: "Ir para especificação",
-    });
-  } else if (state.step === 1) {
-    stepCopy.innerHTML = '<h2>Agora vamos especificar</h2><p>Continue conversando com o agente de especificação. Quando a ideia estiver clara, avance para escolher o agente final.</p>';
-    renderChatStage({
-      agentName: "specification",
-      inputLabel: "Sua mensagem para a especificação",
-      placeholder: "Ex.: Quero que seja adequado para uma turma de 9º ano e dure 50 minutos...",
-      sendLabel: "Enviar para a especificação",
       continueLabel: "Escolher agente final",
     });
   } else {
@@ -509,11 +530,9 @@ async function requestAdvance(fromAgent) {
     }
     await refreshWorkflowArtifacts(data);
     if (data.allowed) {
-      state.step += 1;
+      state.step = 1;
       renderStep();
-      if (state.step === 1) await refreshSpecificationArtifact();
-      const nextAgent = state.step === 1 ? "specification" : state.activeAgent;
-      await sendHiddenGreeting(nextAgent);
+      await sendHiddenGreeting(state.activeAgent);
       renderStep();
     } else {
       renderStep();

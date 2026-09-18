@@ -14,12 +14,19 @@ from graph.tools.sandbox.workdir import _extrai_sandbox_dir, workspace_for_chat
 
 AgentName = Literal[
     "brainstorm",
-    "specification",
     "debate",
     "generic",
     "lesson_plan",
     "political_leteracy",
 ]
+
+GRAPH_AGENT_NAMES = {
+    "brainstorm": "brainstorm_node",
+    "lesson_plan": "lesson_plan_node",
+    "debate": "debate_outline_node",
+    "political_leteracy": "political_leteracy_node",
+    "generic": "generic_activity_node",
+}
 
 
 class WorkflowMessageIn(BaseModel):
@@ -29,7 +36,7 @@ class WorkflowMessageIn(BaseModel):
 
 
 class WorkflowAdvanceIn(BaseModel):
-    from_agent: Literal["brainstorm", "specification"]
+    from_agent: Literal["brainstorm"]
 
 
 class WorkflowSessionOut(BaseModel):
@@ -163,7 +170,7 @@ def _workflow_state(session: dict, session_id: str, text: str, agent_name: Agent
         "chat_id": f"workflow-{session_id}",
         "user_id": "workflow-demo-user",
         "context": None,
-        "agent_name": agent_name,
+        "agent_name": GRAPH_AGENT_NAMES[agent_name],
         "selected_agent": None,
         "next_node": None,
     }
@@ -173,8 +180,6 @@ def _workflow_artifacts(session_id: str, agent_name: AgentName) -> dict:
     sandbox_dir = workspace_for_chat("workflow-demo-user", f"workflow-{session_id}") / "sandbox"
     if agent_name == "brainstorm":
         filename = "planning.json"
-    elif agent_name == "specification":
-        filename = "SPECIFICATION.md"
     elif agent_name in {"debate", "generic", "lesson_plan", "political_leteracy"}:
         filename = "HTML.html"
     else:
@@ -283,14 +288,14 @@ async def _run_streamed_message(
 
 
 def _advance_instruction(from_agent: str) -> str:
-    required_file = "planning.json" if from_agent == "brainstorm" else "SPECIFICATION.md"
+    required_file = "planning.json"
     return (
         "O usuário clicou no botão para avançar para o próximo agente. "
         "Esta é uma solicitação real do usuário e sua resposta será exibida diretamente no chat do frontend. "
         "Responda em português, de forma clara e objetiva, sem mencionar instruções internas do sistema. "
         f"Verifique se {required_file} está completo no sandbox. "
-        "Para planning.json, só considere pronto quando houver exatamente uma ideia com user_has_accepted igual a true. "
-        "Para SPECIFICATION.md, só considere pronto quando houver um Markdown não vazio. "
+        "Para planning.json, só considere pronto quando houver uma lista válida de ideias. "
+        "Também confirme que a audiência escolhida está disponível antes de avançar. "
         f"Se não existir ou estiver incompleto, informe quais dados faltam, mas não cite nomes de arquivos. "
         f"Se houver informações suficientes, gere ou atualize {required_file}, leia o arquivo novamente, "
         "se o usuário já tiver escolhido uma ideia, marque exatamente essa ideia como aceita, "
@@ -299,26 +304,40 @@ def _advance_instruction(from_agent: str) -> str:
 
 
 def _advance_allowed(session_id: str, from_agent: str) -> bool:
-    filename = "planning.json" if from_agent == "brainstorm" else "SPECIFICATION.md"
-    path = workspace_for_chat("workflow-demo-user", f"workflow-{session_id}") / "sandbox" / filename
+    return not _advance_validation_errors(session_id, from_agent)
+
+
+def _advance_validation_errors(session_id: str, from_agent: str) -> list[str]:
+    sandbox_dir = workspace_for_chat("workflow-demo-user", f"workflow-{session_id}") / "sandbox"
+    path = sandbox_dir / "planning.json"
+    errors: list[str] = []
     if from_agent == "brainstorm":
         if not _has_brainstorm_conversation_after(path, session_id):
-            return False
+            errors.append("O brainstorm ainda não respondeu ao usuário.")
+        if not path.is_file():
+            errors.append("Não existe um plano de audiência: planning.json não foi criado.")
+        else:
+            try:
+                planning = json.loads(path.read_text(encoding="utf-8"))
+                if not isinstance(planning, list) or not planning:
+                    errors.append("O plano de audiência está vazio ou não contém uma lista válida.")
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+                errors.append("planning.json existe, mas não contém JSON válido.")
         try:
-            planning = json.loads(path.read_text(encoding="utf-8"))
-            return (
-                isinstance(planning, list)
-                and sum(
-                    isinstance(item, dict) and item.get("user_has_accepted") is True
-                    for item in planning
-                ) == 1
-            )
+            audiencia_path = sandbox_dir / "audiencia.json"
+            if not audiencia_path.is_file():
+                errors.append("Nenhuma audiência foi escolhida. Clique na audiência desejada.")
+            else:
+                audiencia = json.loads(audiencia_path.read_text(encoding="utf-8"))
+                if not isinstance(audiencia, dict):
+                    errors.append("audiencia.json não contém um objeto JSON válido.")
         except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-            return False
+            errors.append("audiencia.json existe, mas não contém JSON válido.")
+        return errors
     try:
-        return path.is_file() and bool(path.read_text(encoding="utf-8").strip())
+        return [] if path.is_file() and bool(path.read_text(encoding="utf-8").strip()) else ["planning.json não existe ou está vazio."]
     except (OSError, UnicodeDecodeError):
-        return False
+        return ["Não foi possível validar o planejamento."]
 
 
 @router.post("/sessions", response_model=WorkflowSessionOut)
@@ -368,7 +387,8 @@ async def workflow_socket(websocket: WebSocket, session_id: str):
 
             if request_type == "advance":
                 advance = WorkflowAdvanceIn.model_validate(request)
-                if _advance_allowed(session_id, advance.from_agent):
+                validation_errors = _advance_validation_errors(session_id, advance.from_agent)
+                if not validation_errors:
                     payload = {
                         "type": "done",
                         "session_id": session_id,
@@ -377,14 +397,12 @@ async def workflow_socket(websocket: WebSocket, session_id: str):
                     payload.update(_workflow_artifacts(session_id, advance.from_agent))
                     await websocket.send_json(payload)
                     continue
-                body = WorkflowMessageIn(
-                    text=_advance_instruction(advance.from_agent),
-                    agent_name=advance.from_agent,
-                    hidden=True,
-                )
-                payload = await _run_streamed_message(session_id, body, emit)
-                payload["allowed"] = _advance_allowed(session_id, advance.from_agent)
-                await websocket.send_json(payload)
+                await websocket.send_json({
+                    "type": "error",
+                    "status_code": 400,
+                    "detail": validation_errors,
+                    "message": "Não é possível escolher o agente final: " + " ".join(validation_errors),
+                })
                 continue
 
             await websocket.send_json({"type": "error", "message": "Tipo de evento inválido."})

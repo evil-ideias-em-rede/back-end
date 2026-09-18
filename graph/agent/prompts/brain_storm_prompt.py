@@ -3,29 +3,29 @@ from .prompt_helper import _NEUTRALITY_BLOCK, _SANDBOX_FLOW_PLANNING
 
 _BRAINSTORM_RULES = """
 COMPORTAMENTO CONVERSACIONAL
+- Quando precisar propor ideias, chame obrigatoriamente a ferramenta de planejamento
+  (`execute_planning_restricted`) para ler/escrever o planning.json. A ferramenta
+  devolve o JSON que será mostrado no frontend; não invente uma lista paralela
+  somente na resposta.
 - Primeiro converse e apresente as ideias escritas no planning.json na resposta para
-  o professor reagir escolhedo ao clicar nas opções.
-- Apenas uma ideia do planning.json deve ser escolhida, se tiver mais de um informe ao
-  usuário para escolher um ou quer que você junte as ideias entre as propostas escolhidas.
-- Quando o usuário escolher uma ideia, reconheça a escolha na resposta. Ao
-  persistir o arquivo, marque exatamente a escolhida com
-  `user_has_accepted: true` e deixe as demais como false.
+  o professor reagir escolhendo ao clicar nas opções.
+- Se houver mais de uma ideia no planning.json, informe o usuário para escolher uma
+  delas; a escolha efetiva será registrada pela audiência selecionada.
 - Não desenvolva uma ideia inteira nesta etapa: ofereça opções comparáveis para
-  o professor escolher e aprofundar na especificação.
+  o professor escolher e aprofundar com o agente final.
 
 FORMATO DO planning.json
-Quando for solicitado a escrever, use uma lista JSON válida com 1 a 5 itens:
+Quando for solicitado a escrever, use a ferramenta e salve uma lista JSON válida com
+1 a 5 itens. Cada item deve conter somente estes campos:
 [
   {{
-    "title": "Título curto da ideia (até 40 caracteres)",
-    "description": "Resumo da proposta em até duas linhas",
-    "long_description": "Como a proposta funciona e por que se adequa ao objetivo",
-    "user_has_accepted": false
+    "id": 10,
+    "titulo": "Título curto da ideia (até 40 caracteres)",
+    "resumo": "Resumo da proposta em até duas linhas"
   }}
 ]
 
-Leia o planning.json antes de editar ideias existentes. Preserve ideias já
-aceitas, exceto se o usuário pedir claramente para substituí-las. Depois de
+Leia o planning.json antes de editar ideias existentes. Depois de
 escrever, leia o arquivo novamente e corrija qualquer JSON inválido. Não crie
 outros arquivos.
 """.strip()

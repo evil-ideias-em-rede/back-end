@@ -20,9 +20,8 @@
       <section class="progress" aria-label="Etapas do fluxo">
         <div class="progress-step active" data-step="0"><span>1</span><strong>Brainstorm</strong></div>
         <div class="progress-line"></div>
-        <div class="progress-step" data-step="1"><span>2</span><strong>Especificação</strong></div>
+        <div class="progress-step" data-step="1"><span>2</span><strong>Agente final</strong></div>
         <div class="progress-line"></div>
-        <div class="progress-step" data-step="2"><span>3</span><strong>Agente final</strong></div>
       </section>
 
       <section class="workspace">
@@ -66,6 +65,17 @@
 
       </section>
     </main>
+    <div class="audiencia-backdrop" id="audiencia-backdrop" hidden></div>
+    <aside class="audiencia-drawer" id="audiencia-drawer" aria-labelledby="audiencia-drawer-title" aria-hidden="true" hidden>
+      <div class="audiencia-drawer-header">
+        <div>
+          <p class="eyebrow">AUDIÊNCIA SELECIONADA</p>
+          <h2 id="audiencia-drawer-title">Audiência</h2>
+        </div>
+        <button class="drawer-close" id="audiencia-drawer-close" type="button" aria-label="Fechar audiência">×</button>
+      </div>
+      <div class="audiencia-drawer-content" id="audiencia-drawer-content"></div>
+    </aside>
     <script src="/app.js"></script>
   </body>
 </html>

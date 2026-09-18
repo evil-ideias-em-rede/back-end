@@ -4,7 +4,6 @@ from langgraph.prebuilt.tool_node import ToolNode
 from langgraph.graph import END, START, StateGraph
 
 from .agent.brain_stom_node import brainstorm_node, execute_planning_bash
-from .agent.specification_node import execute_specification_bash, specification_node
 from .agent.debate_outline_node import debate_outline_node
 from .agent.generic_activity_node import generic_activity_node
 from .agent.lesson_plan_node import lesson_plan_node
@@ -14,7 +13,6 @@ from .tools.sandbox.execute_bash import execute_bash
 
 AGENTS = [
     {"agent_name": "brainstorm_node", "agent_function": brainstorm_node},
-    {"agent_name": "specification_node", "agent_function": specification_node},
     {"agent_name": "lesson_plan_node", "agent_function": lesson_plan_node},
     {"agent_name": "debate_outline_node", "agent_function": debate_outline_node},
     {"agent_name": "political_leteracy_node", "agent_function": political_leteracy_node},
@@ -54,7 +52,7 @@ graph = StateGraph(ChatGraphState)
 graph.add_node("router", router_state)
 for agent_name, agent in AGENT_NAMES.items():
     graph.add_node(agent_name, agent["agent_function"])
-graph.add_node("tools", ToolNode([execute_bash, execute_planning_bash, execute_specification_bash]))
+graph.add_node("tools", ToolNode([execute_bash, execute_planning_bash]))
 graph.add_edge(START, "router")
 
 

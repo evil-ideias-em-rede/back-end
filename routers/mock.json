@@ -1,0 +1,275 @@
+{
+  "audiencias": [
+    {
+      "id": "aud-001",
+      "titulo": "Reforma do Ensino Médio em debate",
+      "tipo": "audiencia_publica",
+      "casa": "Câmara dos Deputados",
+      "comissao": "Comissão de Educação",
+      "data": "2024-08-12",
+      "resumo": "Audiência pública da Comissão de Educação para discutir a reforma do Ensino Médio: carga horária da formação geral básica, organização dos itinerários formativos, ensino técnico integrado e impactos nas redes estaduais. Foram apresentados dados de evasão, depoimentos de estudantes e propostas de revisão da lei, com foco em equidade entre escolas públicas e privadas e na valorização da docência.",
+      "integraUrl": "https://www.camara.leg.br/audiencias/aud-001-reforma-ensino-medio",
+      "participantes": [
+        { "id": "aud-001-part-01", "nome": "Paulo Magalhães", "partido": "PSD", "papel": "Presidente" },
+        { "id": "aud-001-part-02", "nome": "Maria da Silva", "partido": "PT", "papel": "Deputada" },
+        { "id": "aud-001-part-03", "nome": "Rafael Souza", "partido": "NOVO", "papel": "Deputado" },
+        { "id": "aud-001-part-04", "nome": "João Pereira", "partido": "PL", "papel": "Deputado" },
+        { "id": "aud-001-part-05", "nome": "Carlos Mota", "partido": "PSOL", "papel": "Deputado" },
+        { "id": "aud-001-part-06", "nome": "Fernanda Lima", "partido": "MDB", "papel": "Deputada" },
+        { "id": "aud-001-part-07", "nome": "Ana Costa", "partido": "PSDB", "papel": "Deputada" }
+      ],
+      "discursos": [
+        {
+          "id": "aud-001-disc-01",
+          "participanteId": "aud-001-part-01",
+          "orador": "Paulo Magalhães",
+          "partido": "PSD",
+          "ordem": 1,
+          "posicionamento": "neutro",
+          "texto": "Abre a audiência pública, apresenta a pauta do dia e concede a palavra aos deputados inscritos, reforçando o caráter técnico e não partidário do debate."
+        },
+        {
+          "id": "aud-001-disc-02",
+          "participanteId": "aud-001-part-02",
+          "orador": "Maria da Silva",
+          "partido": "PT",
+          "ordem": 2,
+          "posicionamento": "favor",
+          "texto": "Defende a base comum de 2.400 horas na formação geral, com transição gradual para o turno noturno, como forma de garantir equidade formativa entre redes públicas e privadas."
+        },
+        {
+          "id": "aud-001-disc-03",
+          "participanteId": "aud-001-part-03",
+          "orador": "Rafael Souza",
+          "partido": "NOVO",
+          "ordem": 3,
+          "posicionamento": "contra",
+          "texto": "Critica o engessamento curricular proposto e defende maior autonomia das escolas e redes estaduais na composição da grade e dos itinerários formativos."
+        },
+        {
+          "id": "aud-001-disc-04",
+          "participanteId": "aud-001-part-04",
+          "orador": "João Pereira",
+          "partido": "PL",
+          "ordem": 4,
+          "posicionamento": "favor",
+          "texto": "Apoia a expansão de trilhas técnicas certificadas, apontando-as como caminho de inserção mais rápida dos estudantes no mercado de trabalho."
+        },
+        {
+          "id": "aud-001-disc-05",
+          "participanteId": "aud-001-part-05",
+          "orador": "Carlos Mota",
+          "partido": "PSOL",
+          "ordem": 5,
+          "posicionamento": "contra",
+          "texto": "Alerta para o risco de formação técnica precoce e superficial, defendendo o fortalecimento da formação geral antes de qualquer especialização."
+        },
+        {
+          "id": "aud-001-disc-06",
+          "participanteId": "aud-001-part-06",
+          "orador": "Fernanda Lima",
+          "partido": "MDB",
+          "ordem": 6,
+          "posicionamento": "ambiguo",
+          "texto": "Pondera entre ampliar a base comum curricular e preservar a flexibilidade dos itinerários formativos já implementados pelos estados."
+        }
+      ],
+      "posicionamentos": {
+        "contra": [
+          { "participanteId": "aud-001-part-03", "nome": "Rafael Souza", "partido": "NOVO", "resumo": "Critica o engessamento curricular e prefere ampliar a autonomia das escolas." },
+          { "participanteId": "aud-001-part-05", "nome": "Carlos Mota", "partido": "PSOL", "resumo": "Alerta para o risco de formação técnica precoce e superficial." }
+        ],
+        "neutros": [
+          { "participanteId": "aud-001-part-07", "nome": "Ana Costa", "partido": "PSDB", "resumo": "Participou como ouvinte; sem falas registradas na sessão." }
+        ],
+        "favor": [
+          { "participanteId": "aud-001-part-02", "nome": "Maria da Silva", "partido": "PT", "resumo": "Defende a base comum de 2.400h como garantia de equidade formativa." },
+          { "participanteId": "aud-001-part-04", "nome": "João Pereira", "partido": "PL", "resumo": "Apoia trilhas técnicas certificadas como saída para o mercado de trabalho." }
+        ],
+        "ambiguos": [
+          { "participanteId": "aud-001-part-06", "nome": "Fernanda Lima", "partido": "MDB", "resumo": "Oscila entre ampliar a base comum e preservar a flexibilidade dos itinerários." }
+        ]
+      },
+      "propostas": [
+        {
+          "id": "aud-001-prop-01",
+          "titulo": "Ampliar a formação geral básica",
+          "autorId": "aud-001-part-02",
+          "autorNome": "Maria da Silva",
+          "descricao": "Elevar a carga mínima da formação geral para 2.400 horas no Ensino Médio, com transição para o noturno."
+        },
+        {
+          "id": "aud-001-prop-02",
+          "titulo": "Integrar ensino técnico ao regular",
+          "autorId": "aud-001-part-04",
+          "autorNome": "João Pereira",
+          "descricao": "Permitir que a formação técnica profissionalizante seja cursada em paralelo à base comum, com certificação intermediária reconhecida pelo mercado."
+        }
+      ],
+      "lastModifiedAt": 1755000000000
+    },
+    {
+      "id": "aud-002",
+      "titulo": "Marco regulatório da inteligência artificial",
+      "tipo": "audiencia_publica",
+      "casa": "Senado Federal",
+      "comissao": "Comissão de Transparência e Governança Digital",
+      "data": "2024-06-03",
+      "resumo": "Audiência sobre regulação de IA, transparência algorítmica e uso de inteligência artificial em sala de aula, com foco em direitos autorais de material didático e proteção de dados de estudantes.",
+      "integraUrl": "https://www25.senado.leg.br/audiencias/aud-002-marco-ia",
+      "participantes": [
+        { "id": "aud-002-part-01", "nome": "Beatriz Nogueira", "partido": "PSB", "papel": "Presidente" },
+        { "id": "aud-002-part-02", "nome": "Eduardo Ramos", "partido": "PP", "papel": "Senador" },
+        { "id": "aud-002-part-03", "nome": "Lucia Fontes", "partido": "REDE", "papel": "Senadora" },
+        { "id": "aud-002-part-04", "nome": "Marcos Vieira", "partido": "UNIÃO", "papel": "Senador" }
+      ],
+      "discursos": [
+        { "id": "aud-002-disc-01", "participanteId": "aud-002-part-02", "orador": "Eduardo Ramos", "partido": "PP", "ordem": 1, "posicionamento": "favor", "texto": "Defende regras claras de rotulagem de conteúdo gerado por IA em materiais escolares, sem travar a inovação." },
+        { "id": "aud-002-disc-02", "participanteId": "aud-002-part-03", "orador": "Lucia Fontes", "partido": "REDE", "ordem": 2, "posicionamento": "contra", "texto": "Considera o texto atual insuficiente na proteção de dados de menores e pede capítulo específico sobre uso educacional." },
+        { "id": "aud-002-disc-03", "participanteId": "aud-002-part-04", "orador": "Marcos Vieira", "partido": "UNIÃO", "ordem": 3, "posicionamento": "ambiguo", "texto": "Reconhece os riscos, mas teme que exigências excessivas de compliance encareçam ferramentas para escolas públicas." }
+      ],
+      "posicionamentos": {
+        "contra": [
+          { "participanteId": "aud-002-part-03", "nome": "Lucia Fontes", "partido": "REDE", "resumo": "Pede capítulo específico de proteção de dados de estudantes." }
+        ],
+        "neutros": [],
+        "favor": [
+          { "participanteId": "aud-002-part-02", "nome": "Eduardo Ramos", "partido": "PP", "resumo": "Defende rotulagem obrigatória de conteúdo gerado por IA." }
+        ],
+        "ambiguos": [
+          { "participanteId": "aud-002-part-04", "nome": "Marcos Vieira", "partido": "UNIÃO", "resumo": "Teme encarecimento de ferramentas para a rede pública." }
+        ]
+      },
+      "propostas": [
+        {
+          "id": "aud-002-prop-01",
+          "titulo": "Rotulagem obrigatória de conteúdo gerado por IA",
+          "autorId": "aud-002-part-02",
+          "autorNome": "Eduardo Ramos",
+          "descricao": "Exigir identificação visível em materiais didáticos que utilizem conteúdo total ou parcialmente gerado por inteligência artificial."
+        }
+      ],
+      "lastModifiedAt": 1749000000000
+    },
+    {
+      "id": "aud-003",
+      "titulo": "Mudanças climáticas e proteção de biomas",
+      "tipo": "audiencia_publica",
+      "casa": "Câmara dos Deputados",
+      "comissao": "Comissão de Meio Ambiente e Desenvolvimento Sustentável",
+      "data": "2024-04-22",
+      "resumo": "Audiência sobre metas de desmatamento zero e fundo climático, com discussão sobre incorporação do tema na educação ambiental das escolas de fronteira agrícola.",
+      "integraUrl": "https://www.camara.leg.br/audiencias/aud-003-mudancas-climaticas",
+      "participantes": [
+        { "id": "aud-003-part-01", "nome": "Renata Alves", "partido": "PV", "papel": "Presidente" },
+        { "id": "aud-003-part-02", "nome": "Tiago Barros", "partido": "REPUBLICANOS", "papel": "Deputado" },
+        { "id": "aud-003-part-03", "nome": "Camila Duarte", "partido": "PSOL", "papel": "Deputada" }
+      ],
+      "discursos": [
+        { "id": "aud-003-disc-01", "participanteId": "aud-003-part-03", "orador": "Camila Duarte", "partido": "PSOL", "ordem": 1, "posicionamento": "favor", "texto": "Defende meta de desmatamento zero até 2030 e destinação de parte do fundo climático para educação ambiental nas escolas públicas." },
+        { "id": "aud-003-disc-02", "participanteId": "aud-003-part-02", "orador": "Tiago Barros", "partido": "REPUBLICANOS", "ordem": 2, "posicionamento": "contra", "texto": "Questiona o prazo da meta e defende compensação a produtores rurais em áreas de transição." }
+      ],
+      "posicionamentos": {
+        "contra": [
+          { "participanteId": "aud-003-part-02", "nome": "Tiago Barros", "partido": "REPUBLICANOS", "resumo": "Questiona o prazo da meta e pede compensação a produtores rurais." }
+        ],
+        "neutros": [],
+        "favor": [
+          { "participanteId": "aud-003-part-03", "nome": "Camila Duarte", "partido": "PSOL", "resumo": "Defende desmatamento zero até 2030 e verba para educação ambiental." }
+        ],
+        "ambiguos": []
+      },
+      "propostas": [
+        {
+          "id": "aud-003-prop-01",
+          "titulo": "Fundo climático para educação ambiental",
+          "autorId": "aud-003-part-03",
+          "autorNome": "Camila Duarte",
+          "descricao": "Destinar parte do fundo climático nacional para programas de educação ambiental em escolas de regiões de fronteira agrícola."
+        }
+      ],
+      "lastModifiedAt": 1745000000000
+    },
+    {
+      "id": "aud-004",
+      "titulo": "Plano Nacional de Educação Digital e Conectividade (MOCK)",
+      "tipo": "audiencia_publica",
+      "casa": "Câmara dos Deputados",
+      "comissao": "Comissão de Educação",
+      "data": "2024-03-01",
+      "resumo": "Mock: participantes, falas e propostas para teste de volume moderado.",
+      "integraUrl": "https://www.camara.leg.br/audiencias/aud-004-mock-conectividade",
+      "participantes": [
+        { "id": "aud-004-part-01", "nome": "Participante Mock 1", "partido": "PARTIDO_A", "papel": "Presidente" },
+        { "id": "aud-004-part-02", "nome": "Participante Mock 2", "partido": "PARTIDO_B", "papel": "Deputado" },
+        { "id": "aud-004-part-03", "nome": "Participante Mock 3", "partido": "PARTIDO_C", "papel": "Deputado" },
+        { "id": "aud-004-part-04", "nome": "Participante Mock 4", "partido": "PARTIDO_D", "papel": "Deputado" },
+        { "id": "aud-004-part-05", "nome": "Participante Mock 5", "partido": "PARTIDO_E", "papel": "Deputado" }
+      ],
+      "discursos": [
+        { "id": "aud-004-disc-01", "participanteId": "aud-004-part-02", "orador": "Participante Mock 2", "partido": "PARTIDO_B", "ordem": 1, "posicionamento": "favor", "texto": "Texto de fala mock 1 para teste de volume e renderização de lista longa." },
+        { "id": "aud-004-disc-02", "participanteId": "aud-004-part-03", "orador": "Participante Mock 3", "partido": "PARTIDO_C", "ordem": 2, "posicionamento": "contra", "texto": "Texto de fala mock 2 para teste de volume e renderização de lista longa." },
+        { "id": "aud-004-disc-03", "participanteId": "aud-004-part-04", "orador": "Participante Mock 4", "partido": "PARTIDO_D", "ordem": 3, "posicionamento": "ambiguo", "texto": "Texto de fala mock 3 para teste de volume e renderização de lista longa." },
+        { "id": "aud-004-disc-04", "participanteId": "aud-004-part-05", "orador": "Participante Mock 5", "partido": "PARTIDO_E", "ordem": 4, "posicionamento": "neutro", "texto": "Texto de fala mock 4 para teste de volume e renderização de lista longa." }
+      ],
+      "posicionamentos": {
+        "contra": [
+          { "participanteId": "aud-004-part-03", "nome": "Participante Mock 3", "partido": "PARTIDO_C", "resumo": "Resumo mock de posição contrária." }
+        ],
+        "neutros": [
+          { "participanteId": "aud-004-part-05", "nome": "Participante Mock 5", "partido": "PARTIDO_E", "resumo": "Resumo mock de posição neutra." }
+        ],
+        "favor": [
+          { "participanteId": "aud-004-part-02", "nome": "Participante Mock 2", "partido": "PARTIDO_B", "resumo": "Resumo mock de posição favorável." }
+        ],
+        "ambiguos": [
+          { "participanteId": "aud-004-part-04", "nome": "Participante Mock 4", "partido": "PARTIDO_D", "resumo": "Resumo mock de posição ambígua." }
+        ]
+      },
+      "propostas": [
+        { "id": "aud-004-prop-01", "titulo": "Proposta mock 1", "autorId": "aud-004-part-02", "autorNome": "Participante Mock 2", "descricao": "Descrição mock de proposta 1 para teste de layout." },
+        { "id": "aud-004-prop-02", "titulo": "Proposta mock 2", "autorId": "aud-004-part-04", "autorNome": "Participante Mock 4", "descricao": "Descrição mock de proposta 2 para teste de layout." }
+      ],
+      "lastModifiedAt": 1740000000000
+    },
+    {
+      "id": "aud-005",
+      "titulo": "PL das Fake News e liberdade de expressão",
+      "tipo": "audiencia_publica",
+      "casa": "Câmara dos Deputados",
+      "comissao": "Comissão de Ciência e Tecnologia",
+      "data": "2024-02-15",
+      "resumo": "Audiência sobre regulação de plataformas, moderação de conteúdo e liberdade de expressão, com relatos de especialistas em letramento midiático.",
+      "integraUrl": "https://www.camara.leg.br/audiencias/aud-005-pl-fake-news",
+      "participantes": [
+        { "id": "aud-005-part-01", "nome": "Isabela Cardoso", "partido": "PDT", "papel": "Presidente" },
+        { "id": "aud-005-part-02", "nome": "Gustavo Farias", "partido": "PL", "papel": "Deputado" },
+        { "id": "aud-005-part-03", "nome": "Helena Prado", "partido": "PSOL", "papel": "Deputada" }
+      ],
+      "discursos": [
+        { "id": "aud-005-disc-01", "participanteId": "aud-005-part-03", "orador": "Helena Prado", "partido": "PSOL", "ordem": 1, "posicionamento": "favor", "texto": "Defende regras de transparência para moderação de conteúdo e responsabilização de plataformas por desinformação em massa." },
+        { "id": "aud-005-disc-02", "participanteId": "aud-005-part-02", "orador": "Gustavo Farias", "partido": "PL", "ordem": 2, "posicionamento": "contra", "texto": "Alerta para risco de censura e defende que a moderação seja definida pelas próprias plataformas, não pelo Estado." }
+      ],
+      "posicionamentos": {
+        "contra": [
+          { "participanteId": "aud-005-part-02", "nome": "Gustavo Farias", "partido": "PL", "resumo": "Teme censura estatal e defende autorregulação das plataformas." }
+        ],
+        "neutros": [],
+        "favor": [
+          { "participanteId": "aud-005-part-03", "nome": "Helena Prado", "partido": "PSOL", "resumo": "Defende transparência e responsabilização das plataformas." }
+        ],
+        "ambiguos": []
+      },
+      "propostas": [
+        {
+          "id": "aud-005-prop-01",
+          "titulo": "Transparência algorítmica na moderação",
+          "autorId": "aud-005-part-03",
+          "autorNome": "Helena Prado",
+          "descricao": "Obrigar plataformas a publicar relatórios periódicos sobre critérios e volume de moderação de conteúdo."
+        }
+      ],
+      "lastModifiedAt": 1707000000000
+    }
+  ]
+}

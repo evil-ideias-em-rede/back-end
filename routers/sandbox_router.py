@@ -4,7 +4,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from db.memory_store import memory_store
 from graph.tools.sandbox.workdir import BASE_WORKDIRS
@@ -14,12 +14,9 @@ from graph.tools.sandbox.workdir import workspace_for_chat
 MAX_HTML_BYTES = 20 * 1024 * 1024
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 SANDBOX_ID_PATTERN = re.compile(r"^[a-f0-9]{64}$")
+MOCK_AUDIENCIAS_PATH = Path(__file__).with_name("mock.json")
 
 router = APIRouter(prefix="/api", tags=["sandbox"])
-
-
-class PlanningSelectionIn(BaseModel):
-    index: int = Field(ge=0)
 
 
 def _session_or_404(session_id: str) -> None:
@@ -65,10 +62,41 @@ def _workflow_sandbox_dir(session_id: str) -> Path:
     return sandbox_dir
 
 
-@router.post("/workflow/sessions/{session_id}/planning/select")
-async def select_workflow_planning_item(session_id: str, selection: PlanningSelectionIn):
-    """Marca a proposta escolhida no planning.json da sessão."""
+def _audiencia_from_mock(audiencia_id: str) -> dict:
+    try:
+        data = json.loads(MOCK_AUDIENCIAS_PATH.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=500, detail="Não foi possível ler as audiências") from exc
+
+    audiencia = next(
+        (item for item in data.get("audiencias", []) if isinstance(item, dict) and str(item.get("id")) == audiencia_id),
+        None,
+    )
+    if audiencia is None:
+        raise HTTPException(status_code=404, detail=f"Audiência '{audiencia_id}' não encontrada")
+    return audiencia
+
+
+@router.post("/workflow/sessions/{session_id}/planning/select/{planning_id}")
+async def select_workflow_planning_item(session_id: str, planning_id: str):
+    """Seleciona a audiência, salva seu conteúdo no sandbox e devolve o registro completo."""
     sandbox_dir = _workflow_sandbox_dir(session_id)
+    audiencia = _audiencia_from_mock(planning_id)
+    audiencia_path = sandbox_dir / "audiencia.json"
+    audiencia_changed = True
+    try:
+        if audiencia_path.is_file():
+            current_audiencia = json.loads(audiencia_path.read_text(encoding="utf-8"))
+            audiencia_changed = str(current_audiencia.get("id")) != str(audiencia.get("id"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, AttributeError):
+        audiencia_changed = True
+    try:
+        audiencia_path.write_text(
+            json.dumps(audiencia, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail="Não foi possível salvar a audiência no sandbox") from exc
     planning_path = sandbox_dir / "planning.json"
 
     if planning_path.is_symlink() or not planning_path.is_file():
@@ -90,42 +118,45 @@ async def select_workflow_planning_item(session_id: str, selection: PlanningSele
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="planning.json deve conter uma lista de ideias",
         )
-    if selection.index >= len(planning):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Ideia não encontrada",
-        )
-    if not isinstance(planning[selection.index], dict):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="A ideia selecionada está em formato inválido",
-        )
+    selected_index = next(
+        (
+            index
+            for index, item in enumerate(planning)
+            if isinstance(item, dict)
+            and str(item.get("id", item.get("audiencia_id", item.get("session_id", "")))) == planning_id
+        ),
+        None,
+    )
+    already_selected = False
+    if selected_index is not None:
+        already_selected = planning[selected_index].get("user_has_accepted") is True and sum(
+            isinstance(item, dict) and item.get("user_has_accepted") is True
+            for item in planning
+        ) == 1
+        if not already_selected:
+            for item in planning:
+                if isinstance(item, dict):
+                    item["user_has_accepted"] = False
+            planning[selected_index]["user_has_accepted"] = True
 
-    already_selected = planning[selection.index].get("user_has_accepted") is True and sum(
-        isinstance(item, dict) and item.get("user_has_accepted") is True
-        for item in planning
-    ) == 1
-    if not already_selected:
-        for item in planning:
-            if isinstance(item, dict):
-                item["user_has_accepted"] = False
-        planning[selection.index]["user_has_accepted"] = True
-
-        try:
-            planning_path.write_text(
-                json.dumps(planning, ensure_ascii=False, indent=2) + "\n",
-                encoding="utf-8",
-            )
-        except OSError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Não foi possível salvar a ideia escolhida",
-            ) from exc
+            try:
+                planning_path.write_text(
+                    json.dumps(planning, ensure_ascii=False, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+            except OSError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Não foi possível salvar a ideia escolhida",
+                ) from exc
 
     return {
         "session_id": session_id,
-        "selected_index": selection.index,
-        "changed": not already_selected,
+        "selected_id": planning_id,
+        "selected_index": selected_index,
+        "changed": audiencia_changed,
+        "audiencia": audiencia,
+        "audiencia_file": "audiencia.json",
         "planning": planning,
     }
 
