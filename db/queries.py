@@ -66,6 +66,44 @@ async def get_user_by_id(conn, user_id):
     )
 
 
+async def list_user_schools(conn, user_id):
+    return await conn.fetch(
+        """
+        SELECT id, name, created_at, updated_at
+        FROM schools
+        WHERE user_id=$1
+        ORDER BY LOWER(name), created_at
+        """,
+        user_id,
+    )
+
+
+async def update_user_profile(conn, user_id, email, name, picture_url):
+    return await conn.fetchrow(
+        """
+        UPDATE users
+        SET email=$2, name=$3, picture_url=$4, updated_at=NOW()
+        WHERE id=$1
+        RETURNING id, google_id, email, name, picture_url
+        """,
+        user_id,
+        email,
+        name,
+        picture_url,
+    )
+
+
+async def replace_user_schools(conn, user_id, school_names):
+    async with conn.transaction():
+        await conn.execute("DELETE FROM schools WHERE user_id=$1", user_id)
+        for name in school_names:
+            await conn.execute(
+                "INSERT INTO schools (user_id, name) VALUES ($1, $2)",
+                user_id,
+                name,
+            )
+
+
 async def create_chat_tab(conn, user_id, title):
     return await conn.fetchrow(
         """
@@ -175,9 +213,11 @@ async def add_chat_message(conn, chat_tab_id, role, content, filename):
 async def create_workflow_session(conn, session_id, user_id, selected_agent, workdir_id, owner_user_id=None):
     return await conn.fetchrow(
         """
-        INSERT INTO workflow_sessions (id, user_id, owner_user_id, selected_agent, workdir_id)
-        VALUES ($1, $2, $3, $4, $5)
-        RETURNING id, user_id, owner_user_id, selected_agent, workdir_id, created_at, updated_at
+        INSERT INTO workflow_sessions
+            (id, user_id, owner_user_id, selected_agent, workdir_id, current_stage)
+        VALUES ($1, $2, $3, $4, $5, 'audiences')
+        RETURNING id, user_id, owner_user_id, selected_agent, workdir_id,
+                  current_stage, created_at, updated_at
         """,
         session_id, user_id, owner_user_id, selected_agent, workdir_id,
     )
@@ -189,6 +229,7 @@ async def get_workflow_sessions(conn, user_id):
         SELECT
             s.id,
             s.selected_agent,
+            s.current_stage,
             s.created_at,
             s.updated_at,
             COUNT(m.id)::int AS message_count,
@@ -203,7 +244,7 @@ async def get_workflow_sessions(conn, user_id):
         FROM workflow_sessions s
         LEFT JOIN workflow_messages m ON m.session_id = s.id
         WHERE s.user_id = $1
-        GROUP BY s.id, s.selected_agent, s.created_at, s.updated_at
+        GROUP BY s.id, s.selected_agent, s.current_stage, s.created_at, s.updated_at
         ORDER BY COALESCE(MAX(m.created_at), s.created_at) DESC
         """,
         user_id,
@@ -213,7 +254,8 @@ async def get_workflow_sessions(conn, user_id):
 async def get_workflow_session(conn, session_id):
     return await conn.fetchrow(
         """
-        SELECT id, user_id, owner_user_id, selected_agent, workdir_id, created_at, updated_at
+        SELECT id, user_id, owner_user_id, selected_agent, workdir_id,
+               current_stage, created_at, updated_at
         FROM workflow_sessions
         WHERE id=$1
         """,
@@ -224,7 +266,8 @@ async def get_workflow_session(conn, session_id):
 async def get_workflow_session_for_owner(conn, session_id, owner_user_id):
     return await conn.fetchrow(
         """
-        SELECT id, user_id, owner_user_id, selected_agent, workdir_id, created_at, updated_at
+        SELECT id, user_id, owner_user_id, selected_agent, workdir_id,
+               current_stage, created_at, updated_at
         FROM workflow_sessions
         WHERE id=$1 AND (owner_user_id=$2 OR owner_user_id IS NULL)
         """,
@@ -291,9 +334,10 @@ async def create_workflow_session_for_owner(
     return await conn.fetchrow(
         """
         INSERT INTO workflow_sessions
-            (id, user_id, owner_user_id, selected_agent, workdir_id)
-        VALUES ($1, $2, $3, $4, $5)
-        RETURNING id, user_id, owner_user_id, selected_agent, workdir_id, created_at, updated_at
+            (id, user_id, owner_user_id, selected_agent, workdir_id, current_stage)
+        VALUES ($1, $2, $3, $4, $5, 'audiences')
+        RETURNING id, user_id, owner_user_id, selected_agent, workdir_id,
+                  current_stage, created_at, updated_at
         """,
         session_id,
         user_id,
@@ -309,6 +353,7 @@ async def get_workflow_sessions_for_owner(conn, owner_user_id):
         SELECT
             s.id,
             s.selected_agent,
+            s.current_stage,
             s.created_at,
             s.updated_at,
             COUNT(m.id)::int AS message_count,
@@ -323,10 +368,23 @@ async def get_workflow_sessions_for_owner(conn, owner_user_id):
         FROM workflow_sessions s
         LEFT JOIN workflow_messages m ON m.session_id = s.id
         WHERE s.owner_user_id = $1
-        GROUP BY s.id, s.selected_agent, s.created_at, s.updated_at
+        GROUP BY s.id, s.selected_agent, s.current_stage, s.created_at, s.updated_at
         ORDER BY COALESCE(MAX(m.created_at), s.created_at) DESC
         """,
         owner_user_id,
+    )
+
+
+async def update_workflow_session_stage(conn, session_id, current_stage):
+    return await conn.fetchrow(
+        """
+        UPDATE workflow_sessions
+        SET current_stage = $2, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+        RETURNING id, current_stage, updated_at
+        """,
+        session_id,
+        current_stage,
     )
 
 

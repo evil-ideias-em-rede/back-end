@@ -26,6 +26,7 @@ class LoginOut(BaseModel):
     email: str
     name: Optional[str] = None
     picture_url: Optional[str] = None
+    schools: list[str] = Field(default_factory=list)
 
 
 class UserOut(BaseModel):
@@ -33,6 +34,14 @@ class UserOut(BaseModel):
     email: str
     name: Optional[str] = None
     picture_url: Optional[str] = None
+    schools: list[str] = Field(default_factory=list)
+
+
+class ProfileUpdateIn(BaseModel):
+    email: Optional[str] = Field(default=None, min_length=3, max_length=320)
+    name: Optional[str] = Field(default=None, max_length=160)
+    picture_url: Optional[str] = Field(default=None, max_length=6_000_000)
+    schools: list[str] = Field(default_factory=list, max_length=100)
 
 
 class ChatTabOut(BaseModel):
@@ -73,7 +82,9 @@ class TurmaCreateIn(BaseModel):
     qtd: int = Field(default=0, ge=0, validation_alias=AliasChoices("qtd", "student_count"))
     disciplina: str = Field(min_length=1, max_length=120)
     color: Optional[str] = Field(default=None, max_length=30)
-    image: Optional[str] = Field(default=None, max_length=1000)
+    # Imagens são enviadas como data URL para continuarem disponíveis após
+    # recarregar a página; o limite precisa comportar Base64 de imagens comuns.
+    image: Optional[str] = Field(default=None, max_length=6_000_000)
 
 
 class TurmaOut(BaseModel):

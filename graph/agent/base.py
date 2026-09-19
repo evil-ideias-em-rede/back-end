@@ -3,6 +3,10 @@ from langchain_core.runnables import RunnableConfig
 
 from graph.tools.sandbox.execute_bash import execute_bash
 from graph.tools.sandbox.workdir import workspace_for_chat
+from graph.tools.retrieval.audiencias import consultar_audiencia_por_id
+from graph.tools.retrieval.tool_buscar_audiencias import buscar_audiencias
+from graph.tools.retrieval.tool_consultar_audiencias_sql import consultar_audiencias_sql
+from graph.agent.prompts.editor.rules import EDIT_RULES
 
 import os
 from dotenv import load_dotenv
@@ -50,7 +54,20 @@ async def run_agent(
     system_text = system_prompt
     if state.get("context"):
         system_text += f"\n\nContexto persistido deste chat:\n{state['context']}"
-    agent_tools = tools or [execute_bash]
+    if state.get("editor_mode"):
+        system_text += f"\n\n{EDIT_RULES}"
+    if tools is not None:
+        agent_tools = tools
+    elif state.get("editor_mode"):
+        # No editor, o agente só pode operar sobre os arquivos do sandbox.
+        agent_tools = [execute_bash]
+    else:
+        agent_tools = [
+            execute_bash,
+            consultar_audiencia_por_id,
+            buscar_audiencias,
+            consultar_audiencias_sql,
+        ]
     tool_names = ", ".join(getattr(agent_tool, "name", "ferramenta") for agent_tool in agent_tools)
     system_text += (
         f"\n\nVocê tem exatamente estas ferramentas: {tool_names}. "

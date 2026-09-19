@@ -1,4 +1,5 @@
 import logging
+import sqlite3
 from typing import Awaitable, Callable, Literal
 import json
 from pathlib import Path
@@ -7,7 +8,7 @@ from uuid import uuid4
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
 from langchain_core.messages import AIMessage, HumanMessage
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from auth.dependencies import CurrentUser, get_optional_current_user
 from auth.jwt_utils import decode_access_token
@@ -21,9 +22,11 @@ from db.queries import (
     get_workflow_session_for_owner,
     get_workflow_sessions,
     get_workflow_sessions_for_owner,
+    update_workflow_session_stage,
 )
 from graph.main import GRAPH_BUILDER
 from graph.tools.sandbox.workdir import _extrai_sandbox_dir, workspace_for_chat, workspace_id_for_chat
+from graph.tools.retrieval.audiencias import listar_audiencias
 from services.workflow_files import persist_workflow_files, restore_workflow_files
 
 
@@ -33,6 +36,8 @@ AgentName = Literal[
     "generic",
     "lesson_plan",
     "political_leteracy",
+    "writing_workshop",
+    "slides",
 ]
 
 GRAPH_AGENT_NAMES = {
@@ -41,10 +46,14 @@ GRAPH_AGENT_NAMES = {
     "debate": "debate_outline_node",
     "political_leteracy": "political_leteracy_node",
     "generic": "generic_activity_node",
+    "writing_workshop": "writing_workshop_node",
+    "slides": "slides_node",
 }
 
 
 class WorkflowMessageIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     text: str = Field(min_length=1, max_length=20000)
     agent_name: AgentName
     hidden: bool = False
@@ -65,6 +74,7 @@ class WorkflowSessionSummaryOut(BaseModel):
     id: str
     created_at: str
     selected_agent: AgentName | None = None
+    current_stage: Literal["audiences", "editor"] = "audiences"
     message_count: int
     last_message_at: str | None = None
     last_message: str | None = None
@@ -85,6 +95,10 @@ WORKFLOW_USER_ID_STR = str(WORKFLOW_USER_ID)
 class WorkflowSessionCreateIn(BaseModel):
     user_id: int = Field(default=WORKFLOW_USER_ID, ge=1)
     agent_name: AgentName | None = None
+
+
+class WorkflowStageIn(BaseModel):
+    stage: Literal["audiences", "editor"]
 
 
 def _workflow_chat_id(session_id: str) -> str:
@@ -297,7 +311,14 @@ def _graph_config(session_id: str, agent_name: str | None = None) -> dict:
     }
 
 
-def _workflow_state(session: dict, session_id: str, text: str, agent_name: AgentName) -> dict:
+def _workflow_state(
+    session: dict,
+    session_id: str,
+    text: str,
+    agent_name: AgentName,
+    editor_mode: bool = False,
+    user_edited: bool = False,
+) -> dict:
     return {
         "messages": _history(session["messages"]) + [HumanMessage(content=text)],
         "chat_id": _workflow_chat_id(session_id),
@@ -306,6 +327,8 @@ def _workflow_state(session: dict, session_id: str, text: str, agent_name: Agent
         "agent_name": GRAPH_AGENT_NAMES[agent_name],
         "selected_agent": None,
         "next_node": None,
+        "editor_mode": editor_mode,
+        "user_edited": user_edited,
     }
 
 
@@ -313,7 +336,10 @@ def _workflow_artifacts(session_id: str, agent_name: AgentName) -> dict:
     sandbox_dir = _workflow_workspace(session_id) / "sandbox"
     if agent_name == "brainstorm":
         filename = "planning.json"
-    elif agent_name in {"debate", "generic", "lesson_plan", "political_leteracy"}:
+    elif agent_name in {
+        "debate", "generic", "lesson_plan", "political_leteracy",
+        "writing_workshop", "slides",
+    }:
         filename = "HTML.html"
     else:
         return {}
@@ -326,6 +352,53 @@ def _workflow_artifacts(session_id: str, agent_name: AgentName) -> dict:
         return {"html_url": url, "artifact_name": filename, "artifact_url": url}
     url = f"/api/workflow/sessions/{session_id}/{filename}"
     return {"artifact_name": filename, "artifact_url": url}
+
+
+def _planning_path(session_id: str) -> Path:
+    return _workflow_workspace(session_id) / "sandbox" / "planning.json"
+
+
+def _read_planning(session_id: str) -> list[dict]:
+    path = _planning_path(session_id)
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return []
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=422, detail="planning.json não contém JSON válido") from exc
+    if not isinstance(value, list):
+        raise HTTPException(status_code=422, detail="planning.json deve conter uma lista")
+    return [item for item in value if isinstance(item, dict)]
+
+
+def _audiencias_do_indice() -> list[dict]:
+    try:
+        return listar_audiencias()
+    except (OSError, sqlite3.Error) as exc:
+        raise HTTPException(status_code=503, detail="Índice de audiências indisponível") from exc
+
+
+def _audiencia_for_planning_item(item: dict) -> dict | None:
+    audiences = _audiencias_do_indice()
+    candidate_ids = [
+        item.get("audiencia_id"),
+        item.get("audienciaId"),
+        item.get("ref_id"),
+        item.get("id"),
+    ]
+    for candidate_id in candidate_ids:
+        if candidate_id is None:
+            continue
+        match = next((audiencia for audiencia in audiences if str(audiencia.get("id")) == str(candidate_id)), None)
+        if match:
+            return match
+    title = str(item.get("titulo", "")).strip().casefold()
+    if title:
+        return next(
+            (audiencia for audiencia in audiences if str(audiencia.get("titulo", "")).strip().casefold() == title),
+            None,
+        )
+    return None
 
 
 def _has_brainstorm_conversation_after(path: Path, session_id: str) -> bool:
@@ -560,12 +633,38 @@ async def list_workflow_sessions(
             "id": str(row["id"]),
             "created_at": row["created_at"].isoformat(),
             "selected_agent": row["selected_agent"],
+            "current_stage": row["current_stage"] or "audiences",
             "message_count": row["message_count"],
             "last_message_at": row["last_message_at"].isoformat() if row["last_message_at"] else None,
             "last_message": row["last_message"],
         }
         for row in rows
     ]
+
+
+@router.patch("/sessions/{session_id}/stage")
+async def update_workflow_stage(
+    session_id: str,
+    body: WorkflowStageIn,
+    user: CurrentUser | None = Depends(get_optional_current_user),
+):
+    """Persiste a tela atual para a retomada não depender dos arquivos do sandbox."""
+    await _ensure_session_access(session_id, user)
+    try:
+        pool = get_pool()
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Banco de dados indisponível. Verifique DATABASE_URL no .env.",
+        ) from exc
+    async with pool.acquire() as conn:
+        row = await update_workflow_session_stage(conn, session_id, body.stage)
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sessão não encontrada")
+    return {
+        "session_id": str(row["id"]),
+        "current_stage": row["current_stage"],
+    }
 
 
 @router.get("/sessions/{session_id}", response_model=WorkflowSessionOut)
@@ -575,6 +674,50 @@ async def get_workflow_session(
 ):
     await _ensure_session_access(session_id, user)
     return await _ensure_session(session_id)
+
+
+@router.get("/sessions/{session_id}/planning", response_model=list[dict])
+async def get_workflow_planning(
+    session_id: str,
+    user: CurrentUser | None = Depends(get_optional_current_user),
+):
+    await _ensure_session_access(session_id, user)
+    await _ensure_session(session_id)
+    return _read_planning(session_id)
+
+
+@router.post("/sessions/{session_id}/planning/select/{planning_id}", response_model=dict)
+async def select_workflow_planning(
+    session_id: str,
+    planning_id: str,
+    user: CurrentUser | None = Depends(get_optional_current_user),
+):
+    await _ensure_session_access(session_id, user)
+    await _ensure_session(session_id)
+    planning = _read_planning(session_id)
+    selected = next(
+        (
+            item
+            for item in planning
+            if str(item.get("id", item.get("ref_id", ""))) == planning_id
+        ),
+        None,
+    )
+    if selected is None:
+        raise HTTPException(status_code=404, detail="Item de planejamento não encontrado")
+
+    audiencia = _audiencia_for_planning_item(selected)
+    if audiencia is None:
+        raise HTTPException(
+            status_code=404,
+            detail="O item selecionado não possui uma audiência correspondente",
+        )
+
+    audiencia_path = _workflow_workspace(session_id) / "sandbox" / "audiencia.json"
+    audiencia_path.parent.mkdir(parents=True, exist_ok=True)
+    audiencia_path.write_text(json.dumps(audiencia, ensure_ascii=False, indent=2), encoding="utf-8")
+    await persist_workflow_files(session_id)
+    return audiencia
 
 
 @router.websocket("/sessions/{session_id}/ws")
@@ -633,11 +776,11 @@ async def workflow_socket(websocket: WebSocket, session_id: str):
             return
 
 
-@router.post("/sessions/{session_id}/messages", response_model=WorkflowReplyOut)
-async def send_workflow_message(
+async def _process_workflow_message(
     session_id: str,
     body: WorkflowMessageIn,
     user: CurrentUser | None = Depends(get_optional_current_user),
+    editor_mode: bool = False,
 ):
     await _ensure_session_access(session_id, user)
     session = await _ensure_session(session_id)
@@ -658,28 +801,20 @@ async def send_workflow_message(
         hidden=body.hidden,
     )
 
-    state = {
-        "messages": _history(session["messages"]) + [HumanMessage(content=text)],
-        "chat_id": _workflow_chat_id(session_id),
-        "user_id": WORKFLOW_USER_ID_STR,
-        "context": None,
-        "agent_name": body.agent_name,
-        "selected_agent": None,
-        "next_node": None,
-    }
+    state = _workflow_state(
+        session,
+        session_id,
+        text,
+        body.agent_name,
+        editor_mode=editor_mode,
+        user_edited=getattr(body, "user_edited", False),
+    )
 
     try:
         # O ToolNode precisa receber a mesma identidade do chat para preparar
         # o sandbox correto. Sem esta configuração, execute_bash não consegue
         # resolver o diretório e falha antes de acessar planning.json.
-        graph_config = {
-            "configurable": {
-                "thread_id": _workflow_chat_id(session_id),
-                "user_id": WORKFLOW_USER_ID_STR,
-                "work_dir": str(_workflow_workspace(session_id)),
-                "agent_name": body.agent_name,
-            }
-        }
+        graph_config = _graph_config(session_id, body.agent_name)
         result = await GRAPH_BUILDER.ainvoke(state, config=graph_config)
         reply_text = _clean_agent_text(result["messages"][-1].content)
     except Exception:
@@ -700,7 +835,10 @@ async def send_workflow_message(
     )
     await _persist_workflow_message(session_id, body.agent_name, "assistant", reply_text)
     html_url = None
-    if body.agent_name in {"debate", "generic", "lesson_plan", "political_leteracy"}:
+    if body.agent_name in {
+        "debate", "generic", "lesson_plan", "political_leteracy",
+        "writing_workshop", "slides",
+    }:
         html_path = _workflow_workspace(session_id) / "sandbox" / "HTML.html"
         if html_path.is_file():
             html_url = f"/api/workflow/sessions/{session_id}/html"
@@ -725,7 +863,7 @@ async def advance_workflow(
         payload.update(_workflow_artifacts(session_id, body.from_agent))
         return payload
 
-    reply_data = await send_workflow_message(
+    reply_data = await _process_workflow_message(
         session_id,
         WorkflowMessageIn(
             text=_advance_instruction(body.from_agent),

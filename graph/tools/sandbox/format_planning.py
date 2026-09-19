@@ -12,6 +12,10 @@ def format_planning_file(work_dir: str | Path) -> str | None:
     try:
         original = planning_file.read_text(encoding="utf-8")
         data = json.loads(original)
+        if isinstance(data, list):
+            for item in data:
+                if isinstance(item, dict) and "id" not in item and "ref_id" in item:
+                    item["id"] = item.pop("ref_id")
         formatted = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
         if original != formatted:
             planning_file.write_text(formatted, encoding="utf-8")

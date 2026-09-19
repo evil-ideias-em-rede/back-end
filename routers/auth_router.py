@@ -11,12 +11,16 @@ from db.queries import (
     get_or_create_user_by_google,
     get_user_by_email,
     get_user_by_id,
+    list_user_schools,
+    replace_user_schools,
+    update_user_profile,
 )
 from schemas import (
     GoogleLoginIn,
     LoginOut,
     PasswordLoginIn,
     PasswordRegisterIn,
+    ProfileUpdateIn,
     UserOut,
 )
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -42,6 +46,16 @@ def _login_response(user) -> LoginOut:
         email=user["email"],
         name=user["name"],
         picture_url=user["picture_url"],
+    )
+
+
+def _user_response(user, schools) -> UserOut:
+    return UserOut(
+        id=user["id"],
+        email=user["email"],
+        name=user["name"],
+        picture_url=user["picture_url"],
+        schools=[row["name"] for row in schools],
     )
 
 
@@ -102,11 +116,41 @@ async def me(user: CurrentUser = Depends(get_current_user)):
     pool = get_pool()
     async with pool.acquire() as conn:
         row = await get_user_by_id(conn, user.user_id)
+        schools = await list_user_schools(conn, user.user_id)
     if row is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuário não encontrado")
-    return UserOut(
-        id=row["id"],
-        email=row["email"],
-        name=row["name"],
-        picture_url=row["picture_url"],
-    )
+    return _user_response(row, schools)
+
+
+@router.patch("/me", response_model=UserOut)
+async def update_me(body: ProfileUpdateIn, user: CurrentUser = Depends(get_current_user)):
+    email = _normalize_email(body.email) if body.email else None
+    school_names = []
+    seen = set()
+    for value in body.schools:
+        name = value.strip()
+        if not name:
+            continue
+        key = name.casefold()
+        if key not in seen:
+            seen.add(key)
+            school_names.append(name)
+
+    pool = get_pool()
+    try:
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                row = await update_user_profile(
+                    conn,
+                    user.user_id,
+                    email,
+                    body.name.strip() if body.name else None,
+                    body.picture_url,
+                )
+                if row is None:
+                    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado")
+                await replace_user_schools(conn, user.user_id, school_names)
+                schools = await list_user_schools(conn, user.user_id)
+    except asyncpg.UniqueViolationError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="E-mail já cadastrado") from exc
+    return _user_response(row, schools)

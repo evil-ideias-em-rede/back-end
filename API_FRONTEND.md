@@ -46,7 +46,22 @@ Resposta dos dois endpoints:
 ```
 
 Também continua disponível `POST /auth/google` para o fluxo existente com
-Google. Para conferir a sessão atual, use `GET /auth/me`.
+Google. Para conferir a sessão atual, use `GET /auth/me`. A resposta inclui as
+instituições cadastradas pelo professor:
+
+```json
+{
+  "id": "uuid",
+  "email": "professor@escola.edu.br",
+  "name": "Nome do professor",
+  "picture_url": "data:image/png;base64,...",
+  "schools": ["Escola A", "Escola B"]
+}
+```
+
+Para atualizar o perfil, use `PATCH /auth/me` com Bearer JWT. O frontend envia
+nome, e-mail, foto em data URL (até 4 MB) e a lista completa de instituições;
+essa lista substitui a anterior em uma operação transacional.
 
 ## Turmas
 
@@ -148,6 +163,10 @@ o modo mock legado.
 O banco também mantém os arquivos do sandbox vinculados à sessão. Portanto,
 turmas, materiais, templates, mensagens e sessões não dependem do estado em
 memória do processo.
+
+As audiências usadas no brainstorm estão disponíveis em `GET /api/audiencias` e
+`GET /api/audiencias/{id}`. A seleção dentro da sessão usa
+`POST /api/workflow/sessions/{session_id}/planning/select/{id}`.
 
 ## Estado atual da integração
 

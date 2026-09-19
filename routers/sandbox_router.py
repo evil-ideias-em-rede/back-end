@@ -1,5 +1,6 @@
 import json
 import re
+import sqlite3
 from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
@@ -10,6 +11,7 @@ from db.pool import get_pool
 from db.queries import get_workflow_session
 from graph.tools.sandbox.workdir import BASE_WORKDIRS
 from graph.tools.sandbox.workdir import workspace_for_chat
+from graph.tools.retrieval.audiencias import consultar_audiencia
 from services.workflow_files import persist_workflow_files
 from services.workflow_files import restore_workflow_files
 from uuid import UUID
@@ -18,7 +20,6 @@ from uuid import UUID
 MAX_HTML_BYTES = 20 * 1024 * 1024
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 SANDBOX_ID_PATTERN = re.compile(r"^[a-f0-9]{64}$")
-MOCK_AUDIENCIAS_PATH = Path(__file__).with_name("mock.json")
 
 router = APIRouter(prefix="/api", tags=["sandbox"])
 
@@ -67,16 +68,11 @@ async def _workflow_sandbox_dir(session_id: str) -> Path:
     return sandbox_dir
 
 
-def _audiencia_from_mock(audiencia_id: str) -> dict:
+def _audiencia_from_indice(audiencia_id: str) -> dict:
     try:
-        data = json.loads(MOCK_AUDIENCIAS_PATH.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise HTTPException(status_code=500, detail="Não foi possível ler as audiências") from exc
-
-    audiencia = next(
-        (item for item in data.get("audiencias", []) if isinstance(item, dict) and str(item.get("id")) == audiencia_id),
-        None,
-    )
+        audiencia = consultar_audiencia(audiencia_id)
+    except (OSError, sqlite3.Error) as exc:
+        raise HTTPException(status_code=503, detail="Índice de audiências indisponível") from exc
     if audiencia is None:
         raise HTTPException(status_code=404, detail=f"Audiência '{audiencia_id}' não encontrada")
     return audiencia
@@ -86,7 +82,7 @@ def _audiencia_from_mock(audiencia_id: str) -> dict:
 async def select_workflow_planning_item(session_id: str, planning_id: str):
     """Seleciona a audiência, salva seu conteúdo no sandbox e devolve o registro completo."""
     sandbox_dir = await _workflow_sandbox_dir(session_id)
-    audiencia = _audiencia_from_mock(planning_id)
+    audiencia = _audiencia_from_indice(planning_id)
     audiencia_path = sandbox_dir / "audiencia.json"
     audiencia_changed = True
     try:
@@ -128,7 +124,12 @@ async def select_workflow_planning_item(session_id: str, planning_id: str):
             index
             for index, item in enumerate(planning)
             if isinstance(item, dict)
-            and str(item.get("id", item.get("audiencia_id", item.get("session_id", "")))) == planning_id
+            and str(
+                item.get(
+                    "id",
+                    item.get("ref_id", item.get("audiencia_id", item.get("session_id", ""))),
+                )
+            ) == planning_id
         ),
         None,
     )

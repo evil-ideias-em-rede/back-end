@@ -28,6 +28,8 @@ Os valores enviados pela API são:
 | `generic` | Agente final de atividade genérica |
 | `lesson_plan` | Agente final de plano de aula |
 | `political_leteracy` | Agente final de letramento político |
+| `writing_workshop` | Agente final de oficina de redação |
+| `slides` | Agente final de apresentações/slides |
 | `brainstorm` | Etapa inicial de brainstorming; não é escolhido como agente final |
 
 O agente final é escolhido uma única vez ao iniciar a sessão. Depois, o frontend deve enviar `brainstorm` apenas na primeira etapa e o agente escolhido nas mensagens da etapa final.

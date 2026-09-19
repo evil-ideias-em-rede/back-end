@@ -19,11 +19,26 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS name TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS picture_url TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE users ALTER COLUMN google_id DROP NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_id_unique
     ON users (google_id) WHERE google_id IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique
     ON users (LOWER(email)) WHERE email IS NOT NULL;
+
+-- Instituições cadastradas pelo professor. Cada conta possui sua própria lista.
+CREATE TABLE IF NOT EXISTS schools (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL CHECK (char_length(trim(name)) BETWEEN 1 AND 200),
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_schools_user_name_unique
+    ON schools (user_id, LOWER(name));
+CREATE INDEX IF NOT EXISTS idx_schools_user_id ON schools(user_id);
 
 CREATE TABLE IF NOT EXISTS chat_tabs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -126,9 +141,15 @@ CREATE TABLE IF NOT EXISTS workflow_sessions (
     user_id BIGINT NOT NULL REFERENCES workflow_users(id) ON DELETE CASCADE,
     selected_agent TEXT,
     workdir_id TEXT NOT NULL UNIQUE,
+    current_stage TEXT NOT NULL DEFAULT 'audiences',
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
+
+-- A sessão pode voltar para a etapa em que o professor estava, mesmo quando
+-- o HTML já foi salvo no sandbox.
+ALTER TABLE workflow_sessions
+    ADD COLUMN IF NOT EXISTS current_stage TEXT NOT NULL DEFAULT 'audiences';
 
 -- Permite associar uma sessão do workflow a uma conta real sem remover o
 -- usuário mock 10 usado pelo protótipo antigo.

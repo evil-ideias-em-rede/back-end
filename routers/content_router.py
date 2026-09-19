@@ -4,6 +4,7 @@ Os nomes e o formato das respostas acompanham os tipos usados pelo frontend
 React. A autenticação é feita pelo mesmo Bearer JWT dos chats tradicionais.
 """
 
+import sqlite3
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -41,15 +42,47 @@ from schemas import (
     TurmaOut,
     TurmaUpdateIn,
 )
+from graph.tools.retrieval.audiencias import listar_audiencias, consultar_audiencia
 
 
 router = APIRouter(prefix="/api", tags=["professor"])
+
+
+def _audiencias() -> list[dict]:
+    try:
+        return listar_audiencias()
+    except (OSError, sqlite3.Error) as exc:
+        raise HTTPException(status_code=503, detail="Índice de audiências indisponível") from exc
+
+
+@router.get("/audiencias", response_model=list[dict])
+async def list_audiencias():
+    return _audiencias()
+
+
+@router.get("/audiencias/{audiencia_id}", response_model=dict)
+async def get_audiencia(audiencia_id: str):
+    try:
+        audiencia = consultar_audiencia(audiencia_id)
+    except (OSError, sqlite3.Error) as exc:
+        raise HTTPException(status_code=503, detail="Índice de audiências indisponível") from exc
+    if audiencia is None:
+        raise HTTPException(status_code=404, detail="Audiência não encontrada")
+    return audiencia
 
 
 def _timestamp(value: datetime) -> int:
     if value.tzinfo is None:
         value = value.replace(tzinfo=timezone.utc)
     return int(value.timestamp() * 1000)
+
+
+def _turma_image(value) -> str | None:
+    if not value:
+        return None
+    image = str(value)
+    # URLs blob pertencem apenas à aba que as criou e não são persistentes.
+    return None if image.startswith("blob:") else image
 
 
 def _turma_output(row) -> dict:
@@ -61,7 +94,7 @@ def _turma_output(row) -> dict:
         "qtd": row["student_count"],
         "disciplina": row["disciplina"],
         "color": row["color"],
-        "image": row["image"],
+        "image": _turma_image(row["image"]),
         "lastModifiedAt": _timestamp(row["updated_at"]),
     }
 

@@ -2,6 +2,8 @@ asyncpg==0.30.0
 fastapi==0.116.1
 google-auth==2.38.0
 langchain-openai==1.1.10
+sqlite-vec==0.1.9
+tiktoken==0.14.0
 langgraph
 langgraph-prebuilt
 openai==2.21.0

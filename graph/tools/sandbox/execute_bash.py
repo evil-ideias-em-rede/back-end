@@ -29,6 +29,9 @@ async def execute_bash(comando: str, config: RunnableConfig) -> str:
     a biblioteca matplotlib para gerar gráficos e salvar como imagens, que podem
     ser incluídas no PDF.
     Também é possível gerar slides com a biblioteca "pptxgenjs" como descrito na skill "geracao_slide.md".
+    Para validar um HTML antes de concluir um material, use a skill
+    "validar_html_pdf.md": ela fornece "html_pdf_tools.py", que usa o mesmo
+    Chromium do endpoint de exportação, e "conversor_pdf_para_imagem.py".
 
     Args:
         comando (str): Comando a ser executado no shell (ex: "ls -la", echo "print('Python rodando!)" > teste.py, python3 teste.py).
