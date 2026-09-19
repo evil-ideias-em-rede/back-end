@@ -1,5 +1,5 @@
 .env
-graph/tools/retrieval/dados_camara/datasets/indice_busca.sqlite
+graph/tools/retrieval/indice/indice_busca.sqlite
 # deputados.sqlite passou de 32MB pra ~11GB (mais dados de deputados) —
 # acima do limite de 100MB do GitHub. Baixar manualmente do Google Drive
 # do projeto e colocar em dados_camara/datasets/deputados.sqlite.

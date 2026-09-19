@@ -10,4 +10,6 @@ pydantic==2.11.7
 python-dotenv==1.1.1
 requests==2.32.3
 rich==14.1.0
+sqlite-vec==0.1.9
+tiktoken==0.14.0
 uvicorn==0.23.1
