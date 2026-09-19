@@ -1,9 +1,4 @@
-"""Armazenamento efêmero para o protótipo do fluxo de agentes.
-
-Os dados vivem somente no processo do FastAPI e são perdidos quando o servidor
-é reiniciado. Isso deixa o fluxo independente de autenticação e Postgres nesta
-primeira versão.
-"""
+"""Cache em memória do fluxo; a fonte persistente fica no PostgreSQL."""
 
 from datetime import datetime, timezone
 from threading import RLock
@@ -19,11 +14,17 @@ class InMemoryWorkflowStore:
         self._sessions: dict[str, dict] = {}
         self._lock = RLock()
 
-    def create_session(self) -> dict:
-        session_id = str(uuid4())
+    def create_session(
+        self,
+        session_id: str | None = None,
+        created_at: str | None = None,
+        selected_agent: str | None = None,
+    ) -> dict:
+        session_id = session_id or str(uuid4())
         session = {
             "id": session_id,
-            "created_at": _now(),
+            "created_at": created_at or _now(),
+            "selected_agent": selected_agent,
             "messages": [],
         }
         with self._lock:
@@ -38,6 +39,7 @@ class InMemoryWorkflowStore:
             return {
                 "id": session["id"],
                 "created_at": session["created_at"],
+                "selected_agent": session["selected_agent"],
                 "messages": [message.copy() for message in session["messages"]],
             }
 

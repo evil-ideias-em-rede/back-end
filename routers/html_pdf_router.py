@@ -6,9 +6,12 @@ from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from fastapi.responses import Response
+from uuid import UUID
 
-from db.memory_store import memory_store
+from db.pool import get_pool
+from db.queries import get_workflow_session
 from graph.tools.sandbox.workdir import workspace_for_chat
+from services.workflow_files import persist_workflow_files, restore_workflow_files
 
 
 MAX_PDF_HTML_BYTES = 20 * 1024 * 1024
@@ -39,14 +42,18 @@ PDF_PRINT_OVERRIDES = """
 router = APIRouter(prefix="/api/workflow", tags=["html-pdf"])
 
 
-def _session_or_404(session_id: str) -> None:
+async def _session_or_404(session_id: str) -> None:
     try:
-        memory_store.snapshot(session_id)
-    except KeyError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Sessão não encontrada na memória do servidor",
-        ) from exc
+        session_uuid = UUID(session_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sessão não encontrada") from exc
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        session = await get_workflow_session(conn, session_uuid)
+    if session is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sessão não encontrada")
+    await restore_workflow_files(session_id)
 
 
 def _html_for_pdf(html_content: bytes) -> bytes:
@@ -61,14 +68,14 @@ def _html_for_pdf(html_content: bytes) -> bytes:
 @router.post("/sessions/{session_id}/pdf")
 async def generate_workflow_pdf(session_id: str, file: UploadFile = File(...)):
     """Converte o HTML enviado pelo frontend em PDF e devolve o arquivo."""
-    _session_or_404(session_id)
+    await _session_or_404(session_id)
     html_content = await file.read(MAX_PDF_HTML_BYTES + 1)
     if len(html_content) > MAX_PDF_HTML_BYTES:
         raise HTTPException(status_code=413, detail="O HTML deve ter no máximo 20 MB")
     if not html_content.strip():
         raise HTTPException(status_code=422, detail="O HTML não pode estar vazio")
 
-    sandbox_dir = workspace_for_chat("workflow-demo-user", f"workflow-{session_id}") / "sandbox"
+    sandbox_dir = workspace_for_chat("10", f"workflow-{session_id}") / "sandbox"
     sandbox_dir.mkdir(parents=True, exist_ok=True)
     html_path = None
     pdf_path = None
@@ -133,6 +140,7 @@ async def generate_workflow_pdf(session_id: str, file: UploadFile = File(...)):
         if pdf_path:
             pdf_path.unlink(missing_ok=True)
 
+    await persist_workflow_files(session_id)
     return Response(
         content=pdf_content,
         media_type="application/pdf",

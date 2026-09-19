@@ -42,9 +42,23 @@ body {
 }
 ```
 
-**Padrão: uma única `.pagina`, contínua, sem abas.** Na grande maioria dos casos (ofício, memorando, plano de aula, formulário) o documento é uma folha só — deixe o conteúdo crescer verticalmente dentro de uma `.pagina` (por isso `min-height`, não `height` fixo) em vez de inventar uma navegação por abas ou "página 1 / página 2" clicável dentro do HTML. Isso quebra a metáfora de folha impressa e adiciona uma camada de JS/estado que ninguém pediu.
+### Marcação de página (`data-ied-page`)
 
-Só use mais de uma `.pagina` quando o conteúdo realmente for longo o bastante para exigir múltiplas folhas impressas de verdade (um contrato de 4 páginas, por exemplo). Mesmo nesse caso, é para a **impressão** (`page-break-after`, ver Passo 6) — continue sem tabs ou botões de "próxima página"; o usuário rola a página normalmente na tela.
+Cada folha não é um `<div>` solto: é um `<section>` com um atributo `data-ied-page="N"` (N começando em 1 e incrementando a cada folha nova). É esse atributo que o editor usa para saber onde uma página termina e a próxima começa — sem ele, o front-end não consegue paginar o documento. Coloque a classe `.pagina` no mesmo elemento, para que o HTML também fique com cara de folha A4 se for aberto sozinho fora do editor:
+
+```html
+<section class="pagina" data-ied-page="1">
+  ...conteúdo da primeira folha...
+</section>
+
+<section class="pagina" data-ied-page="2">
+  ...conteúdo da segunda folha...
+</section>
+```
+
+Inclua esse atributo sempre, mesmo em documentos de uma página só (`data-ied-page="1"`) — não custa nada e mantém o documento consistente com o que o editor espera.
+
+**Quantas páginas usar:** na maioria dos casos (ofício curto, memorando) uma página é suficiente. Para documentos mais longos (um plano de aula com várias etapas, um contrato) é normal e esperado que o conteúdo se divida em 2, 3 ou mais `data-ied-page`, uma por folha física — o exemplo completo mais adiante mostra isso com duas páginas. O que continua proibido é simular a paginação com abas ou botões de "próxima página" em JS: a marcação `data-ied-page` já é suficiente para o editor renderizar isso; você só precisa colocar cada bloco de conteúdo na seção de página certa.
 
 ## Passo 2 — Dividir o conteúdo em seções com ID único
 
@@ -67,6 +81,7 @@ Cada bloco de sentido (título, um item de lista de itens relacionados, um pará
 Duas regras evitam dor de cabeça depois:
 - **Não aninhe `<div class="secao">` uma dentro da outra.** Se um clique precisa "borbulhar" por duas seções sobrepostas, o usuário nunca vai saber qual delas está editando. Mantenha uma estrutura plana: uma seção, um bloco de conteúdo.
 - **IDs são para sempre.** Quando o usuário disser "na secao-abertura, troque X por Y", você deve localizar exatamente essa `div` no arquivo e editar só ela com `str_replace` — é para isso que o ID serve. Não regenere o arquivo inteiro a cada pedido de ajuste; isso desperdiça contexto e arrisca mudar coisas que o usuário não pediu.
+- **ID de seção e página são coisas independentes.** Uma `.secao` fica dentro de um `<section data-ied-page="N">` (Passo 1), mas o id dela não muda se o conteúdo for reorganizado para outra página depois — o `data-ied-page` diz onde a folha física termina, o `id` diz qual bloco é editável, e um não depende do outro.
 
 ### Convenções de ID por tipo de documento
 
@@ -127,7 +142,7 @@ Use (A) por padrão — é o caminho mais comum, funciona em qualquer artifact H
 
 ## Passo 4 — Sumário com âncoras (opcional, para documentos longos)
 
-Como a folha é uma página só (Passo 1) e não tem abas, a forma de navegar num documento longo é um pequeno sumário no topo com links âncora apontando para os IDs das seções — sem duplicar a navegação com JS:
+Como não há abas, a forma de navegar num documento com várias seções (independente de ter uma ou várias `data-ied-page`) é um pequeno sumário no topo do documento — antes da primeira `<section data-ied-page>` — com links âncora apontando para os IDs das seções:
 
 ```html
 <style>
@@ -199,7 +214,8 @@ Tabelas de materiais seguem a mesma lógica: um `<table>` comum dentro da `.seca
 ```css
 @media print {
   body { background: none; padding: 0; }
-  .pagina { box-shadow: none; margin: 0; page-break-after: always; } /* só importa quando há mais de uma .pagina de verdade — ver Passo 1 */
+  .pagina { box-shadow: none; margin: 0; }
+  .pagina:not(:last-of-type) { page-break-after: always; } /* :not(:last-of-type) evita uma folha em branco extra no fim */
   .secao:hover, .secao.selecionada { outline: none; background: none; }
   .sumario { display: none; }
 }
@@ -253,7 +269,8 @@ Tabelas de materiais seguem a mesma lógica: um `<table>` comum dentro da `.seca
   .secao.selecionada { background: rgba(124,58,237,.08); outline: 2px solid var(--accent); }
   @media print {
     body { background: none; padding: 0; }
-    .pagina { box-shadow: none; margin: 0; page-break-after: always; }
+    .pagina { box-shadow: none; margin: 0; }
+    .pagina:not(:last-of-type) { page-break-after: always; }
     .sumario { display: none; }
   }
   @page { size: A4; margin: 0; }
@@ -261,16 +278,16 @@ Tabelas de materiais seguem a mesma lógica: um `<table>` comum dentro da `.seca
 </head>
 <body>
 
-  <div class="pagina">
+  <nav class="sumario">
+    <a href="#secao-abertura">Abertura de processos</a>
+    <a href="#secao-tramite">Trâmite</a>
+    <a href="#secao-fontes">Fontes</a>
+  </nav>
+
+  <section class="pagina" data-ied-page="1">
     <div class="secao" id="secao-titulo" data-titulo="Título" onclick="selecionar(this)">
       <h1>INFORMAÇÕES SOBRE O ASSUNTO X</h1>
     </div>
-
-    <nav class="sumario">
-      <a href="#secao-abertura">Abertura de processos</a>
-      <a href="#secao-tramite">Trâmite</a>
-      <a href="#secao-fontes">Fontes</a>
-    </nav>
 
     <div class="secao" id="secao-abertura" data-titulo="Abertura de processos" onclick="selecionar(this)">
       <h2>ABERTURA DE PROCESSOS.</h2>
@@ -279,7 +296,9 @@ Tabelas de materiais seguem a mesma lógica: um `<table>` comum dentro da `.seca
         <li>Segundo ponto, com detalhes adicionais.</li>
       </ul>
     </div>
+  </section>
 
+  <section class="pagina" data-ied-page="2">
     <div class="secao" id="secao-tramite" data-titulo="Trâmite" onclick="selecionar(this)">
       <h2>TRÂMITE.</h2>
       <p>Texto explicando como o processo deve tramitar entre setores.</p>
@@ -288,7 +307,7 @@ Tabelas de materiais seguem a mesma lógica: um `<table>` comum dentro da `.seca
     <div class="secao" id="secao-fontes" data-titulo="Fontes" onclick="selecionar(this)">
       <p style="font-size:12px;color:#555;">Fontes: ...</p>
     </div>
-  </div>
+  </section>
 
 <script>
   function selecionar(el) {
@@ -299,6 +318,8 @@ Tabelas de materiais seguem a mesma lógica: um `<table>` comum dentro da `.seca
 </body>
 </html>
 ```
+
+Note que o sumário fica fora das `.pagina` — ele é um recurso de navegação do documento inteiro, não pertence a uma folha específica, então não faz sentido morar dentro de `data-ied-page="1"`.
 
 ## Depois que o usuário responder
 

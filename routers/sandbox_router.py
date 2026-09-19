@@ -6,9 +6,13 @@ from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from db.memory_store import memory_store
+from db.pool import get_pool
+from db.queries import get_workflow_session
 from graph.tools.sandbox.workdir import BASE_WORKDIRS
 from graph.tools.sandbox.workdir import workspace_for_chat
+from services.workflow_files import persist_workflow_files
+from services.workflow_files import restore_workflow_files
+from uuid import UUID
 
 
 MAX_HTML_BYTES = 20 * 1024 * 1024
@@ -17,16 +21,6 @@ SANDBOX_ID_PATTERN = re.compile(r"^[a-f0-9]{64}$")
 MOCK_AUDIENCIAS_PATH = Path(__file__).with_name("mock.json")
 
 router = APIRouter(prefix="/api", tags=["sandbox"])
-
-
-def _session_or_404(session_id: str) -> None:
-    try:
-        memory_store.snapshot(session_id)
-    except KeyError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Sessão não encontrada na memória do servidor",
-        ) from exc
 
 
 def _sandbox_dir_from_id(sandbox_id: str) -> Path:
@@ -54,9 +48,20 @@ def _require_non_empty_file(path: Path, filename: str) -> None:
         )
 
 
-def _workflow_sandbox_dir(session_id: str) -> Path:
-    _session_or_404(session_id)
-    sandbox_dir = workspace_for_chat("workflow-demo-user", f"workflow-{session_id}") / "sandbox"
+async def _workflow_sandbox_dir(session_id: str) -> Path:
+    try:
+        session_uuid = UUID(session_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sessão não encontrada") from exc
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        session = await get_workflow_session(conn, session_uuid)
+    if session is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sessão não encontrada")
+
+    await restore_workflow_files(session_id)
+    sandbox_dir = workspace_for_chat("10", f"workflow-{session_id}") / "sandbox"
     if not sandbox_dir.is_dir():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sandbox não encontrado")
     return sandbox_dir
@@ -80,7 +85,7 @@ def _audiencia_from_mock(audiencia_id: str) -> dict:
 @router.post("/workflow/sessions/{session_id}/planning/select/{planning_id}")
 async def select_workflow_planning_item(session_id: str, planning_id: str):
     """Seleciona a audiência, salva seu conteúdo no sandbox e devolve o registro completo."""
-    sandbox_dir = _workflow_sandbox_dir(session_id)
+    sandbox_dir = await _workflow_sandbox_dir(session_id)
     audiencia = _audiencia_from_mock(planning_id)
     audiencia_path = sandbox_dir / "audiencia.json"
     audiencia_changed = True
@@ -150,6 +155,7 @@ async def select_workflow_planning_item(session_id: str, planning_id: str):
                     detail="Não foi possível salvar a ideia escolhida",
                 ) from exc
 
+    await persist_workflow_files(session_id)
     return {
         "session_id": session_id,
         "selected_id": planning_id,
@@ -215,7 +221,7 @@ async def get_sandbox_file(sandbox_id: str, filename: str):
 @router.get("/workflow/sessions/{session_id}/html")
 async def get_workflow_html(session_id: str):
     """Entrega o HTML produzido pelo agente no sandbox da sessão."""
-    sandbox_dir = _workflow_sandbox_dir(session_id)
+    sandbox_dir = await _workflow_sandbox_dir(session_id)
     html_path = sandbox_dir / "HTML.html"
     _require_non_empty_file(html_path, "HTML.html")
     return FileResponse(html_path, media_type="text/html", headers={"Cache-Control": "no-store"})
@@ -224,7 +230,7 @@ async def get_workflow_html(session_id: str):
 @router.get("/workflow/sessions/{session_id}/{filename:path}")
 async def get_workflow_asset(session_id: str, filename: str):
     """Serve imagens, documentos e outros arquivos do sandbox da sessão."""
-    sandbox_dir = _workflow_sandbox_dir(session_id).resolve()
+    sandbox_dir = (await _workflow_sandbox_dir(session_id)).resolve()
     relative_name = filename.removeprefix("sandbox/")
     asset_path = (sandbox_dir / relative_name).resolve()
     try:
@@ -238,7 +244,7 @@ async def get_workflow_asset(session_id: str, filename: str):
 @router.post("/workflow/sessions/{session_id}/files")
 async def upload_workflow_file(session_id: str, file: UploadFile = File(...)):
     """Salva um anexo enviado pelo frontend no sandbox da sessão."""
-    sandbox_dir = _workflow_sandbox_dir(session_id)
+    sandbox_dir = await _workflow_sandbox_dir(session_id)
     filename = Path(file.filename or "").name
     if not filename or filename in {".", ".."}:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Nome de arquivo inválido")
@@ -248,4 +254,5 @@ async def upload_workflow_file(session_id: str, file: UploadFile = File(...)):
         raise HTTPException(status_code=413, detail="O arquivo deve ter no máximo 20 MB")
     target = sandbox_dir / filename
     target.write_bytes(content)
+    await persist_workflow_files(session_id)
     return {"filename": filename, "sandbox_path": f"sandbox/{filename}", "size": len(content)}

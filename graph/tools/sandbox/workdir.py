@@ -28,6 +28,87 @@ def workspace_for_chat(user_id: str, chat_id: str) -> Path:
     return BASE_WORKDIRS / workspace_id_for_chat(user_id, chat_id)
 
 
+def _agent_key(agent_name: str | None) -> str | None:
+    """Normaliza o nome recebido para localizar a pasta do agente."""
+    if not agent_name:
+        return None
+    return str(agent_name).strip().lower().replace("-", "_")
+
+
+def _agent_dir_candidates(agent_name: str | None) -> list[str]:
+    """Retorna nomes de pasta possíveis, priorizando o nome exato do agente."""
+    agent_key = _agent_key(agent_name)
+    if not agent_key:
+        return []
+
+    candidates = [agent_key]
+    if agent_key.endswith("_node"):
+        candidates.append(agent_key.removesuffix("_node"))
+    else:
+        candidates.append(f"{agent_key}_node")
+
+    # Nomes curtos enviados pela API para os nodes atuais.
+    node_aliases = {
+        "debate": "debate_outline_node",
+        "generic": "generic_activity_node",
+        "political_leteracy": "political_leteracy_node",
+    }
+    if agent_key in node_aliases:
+        candidates.append(node_aliases[agent_key])
+
+    # Compatibilidade com o nome usado anteriormente para o plano de aula.
+    if agent_key in {"lesson_plan", "lesson_plan_node"}:
+        candidates.append("plano_de_aula")
+    return list(dict.fromkeys(candidates))
+
+
+def _agent_source_dir(agent_name: str | None) -> Path | None:
+    """Encontra shared/<agente> sem exigir cadastro prévio do agente."""
+    for directory_name in _agent_dir_candidates(agent_name):
+        candidate = SHARED_FILES_DIR / directory_name
+        if candidate.is_dir():
+            return candidate
+    return None
+
+
+def _copy_flat_files(source_dir: Path, target_dir: Path, skip_names: set[str] | None = None) -> None:
+    """Copia somente arquivos diretamente no diretório de origem."""
+    if not source_dir.is_dir():
+        return
+    skip_names = skip_names or set()
+    for source in source_dir.iterdir():
+        if not source.is_file() or source.name in skip_names:
+            continue
+        target = target_dir / source.name
+        if not target.exists():
+            shutil.copy2(source, target)
+
+
+def _copy_shared_files(sandbox_dir: Path, agent_name: str | None = None) -> None:
+    """Prepara os arquivos comuns e os arquivos do agente na mesma raiz."""
+    # O planejamento é um artefato exclusivo do brainstorm. Os nodes finais
+    # removem o arquivo e não devem recriá-lo ao preparar suas ferramentas.
+    skip_names = set()
+    if _agent_key(agent_name) not in {"brainstorm", "brainstorm_node"}:
+        skip_names.add("planning.json")
+    _copy_flat_files(SHARED_FILES_DIR, sandbox_dir, skip_names=skip_names)
+    agent_source_dir = _agent_source_dir(agent_name)
+    if agent_source_dir:
+        _copy_flat_files(agent_source_dir, sandbox_dir, skip_names=skip_names)
+
+
+def remover_planning_json(state: dict) -> None:
+    """Remove o planejamento do sandbox associado à sessão do agente."""
+    work_dir = workspace_for_chat(str(state["user_id"]), str(state["chat_id"]))
+    sandbox_dir = work_dir / "sandbox"
+    try:
+        sandbox_dir.mkdir(parents=True, exist_ok=True)
+        planning_path = sandbox_dir / "planning.json"
+        planning_path.unlink(missing_ok=True)
+    except OSError as exc:
+        raise RuntimeError("Não foi possível remover planning.json do sandbox") from exc
+
+
 def _validar_work_dir(work_dir: str | os.PathLike[str]) -> Path:
     """Resolves e valida um diretório isolado imediatamente abaixo de workdirs/."""
     work_dir_resolvido = Path(work_dir).resolve()
@@ -85,14 +166,12 @@ async def _extrai_sandbox_dir(config: RunnableConfig) -> str:
     sandbox_dir = work_dir / "sandbox"
     sandbox_dir.mkdir(exist_ok=True)
 
-    # Os arquivos de referência são comuns a todos os agentes, mas ficam
-    # dentro do diretório do chat para que o processo isolado só veja um único
-    # workspace gravável.
-    if SHARED_FILES_DIR.is_dir():
-        for source in SHARED_FILES_DIR.iterdir():
-            target = sandbox_dir / source.name
-            if source.is_file() and not target.exists():
-                shutil.copy2(source, target)
+    # Os arquivos comuns e os específicos do agente ficam diretamente na raiz
+    # do sandbox do chat. O processo isolado continua vendo somente esse
+    # diretório, sem conhecer a estrutura interna do projeto.
+    configurable = config.get("configurable", {})
+    agent_name = configurable.get("agent_name") or configurable.get("selected_agent")
+    _copy_shared_files(sandbox_dir, agent_name)
 
     if os.name == "posix":
         app_uid, app_gid = os.geteuid(), os.getegid()

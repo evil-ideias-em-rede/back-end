@@ -1,15 +1,30 @@
-from datetime import datetime
+import logging
 from typing import Awaitable, Callable, Literal
 import json
 from pathlib import Path
+from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, status
+import jwt
+from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
 from langchain_core.messages import AIMessage, HumanMessage
 from pydantic import BaseModel, Field
 
+from auth.dependencies import CurrentUser, get_optional_current_user
+from auth.jwt_utils import decode_access_token
+from db.pool import get_pool
 from db.memory_store import memory_store
+from db.queries import (
+    add_workflow_message,
+    create_workflow_session as insert_workflow_session,
+    get_workflow_messages,
+    get_workflow_session as fetch_workflow_session,
+    get_workflow_session_for_owner,
+    get_workflow_sessions,
+    get_workflow_sessions_for_owner,
+)
 from graph.main import GRAPH_BUILDER
-from graph.tools.sandbox.workdir import _extrai_sandbox_dir, workspace_for_chat
+from graph.tools.sandbox.workdir import _extrai_sandbox_dir, workspace_for_chat, workspace_id_for_chat
+from services.workflow_files import persist_workflow_files, restore_workflow_files
 
 
 AgentName = Literal[
@@ -42,7 +57,17 @@ class WorkflowAdvanceIn(BaseModel):
 class WorkflowSessionOut(BaseModel):
     id: str
     created_at: str
+    selected_agent: AgentName | None = None
     messages: list[dict]
+
+
+class WorkflowSessionSummaryOut(BaseModel):
+    id: str
+    created_at: str
+    selected_agent: AgentName | None = None
+    message_count: int
+    last_message_at: str | None = None
+    last_message: str | None = None
 
 
 class WorkflowReplyOut(BaseModel):
@@ -52,6 +77,22 @@ class WorkflowReplyOut(BaseModel):
 
 
 router = APIRouter(prefix="/api/workflow", tags=["workflow"])
+logger = logging.getLogger(__name__)
+WORKFLOW_USER_ID = 10
+WORKFLOW_USER_ID_STR = str(WORKFLOW_USER_ID)
+
+
+class WorkflowSessionCreateIn(BaseModel):
+    user_id: int = Field(default=WORKFLOW_USER_ID, ge=1)
+    agent_name: AgentName | None = None
+
+
+def _workflow_chat_id(session_id: str) -> str:
+    return f"workflow-{session_id}"
+
+
+def _workflow_workspace(session_id: str) -> Path:
+    return workspace_for_chat(WORKFLOW_USER_ID_STR, _workflow_chat_id(session_id))
 
 
 def _history(rows: list[dict]) -> list:
@@ -147,6 +188,93 @@ def _session_or_404(session_id: str) -> dict:
         ) from exc
 
 
+async def _ensure_session(session_id: str) -> dict:
+    """Carrega uma sessão persistida para a memória usada pelo grafo."""
+    try:
+        session = memory_store.snapshot(session_id)
+        await restore_workflow_files(session_id)
+        return session
+    except KeyError:
+        pass
+
+    try:
+        pool = get_pool()
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Banco de dados indisponível. Verifique DATABASE_URL no .env.",
+        ) from exc
+    async with pool.acquire() as conn:
+        session_row = await fetch_workflow_session(conn, session_id)
+        if session_row is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sessão não encontrada")
+        message_rows = await get_workflow_messages(conn, session_id)
+
+    created_at = session_row["created_at"].isoformat()
+    memory_store.create_session(
+        session_id=str(session_row["id"]),
+        created_at=created_at,
+        selected_agent=session_row["selected_agent"],
+    )
+    for row in message_rows:
+        memory_store.add_message(
+            session_id,
+            role=row["role"],
+            content=row["content"] or "",
+            agent_name=row["agent_name"],
+            hidden=row["hidden"],
+        )
+    await restore_workflow_files(session_id)
+    return memory_store.snapshot(session_id)
+
+
+async def _ensure_session_access(session_id: str, user: CurrentUser | None) -> None:
+    """Mantém o modo mock público e restringe sessões novas ao seu dono."""
+    if user is None:
+        return
+    try:
+        pool = get_pool()
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Banco de dados indisponível. Verifique DATABASE_URL no .env.",
+        ) from exc
+    async with pool.acquire() as conn:
+        row = await get_workflow_session_for_owner(conn, session_id, user.user_id)
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sessão não encontrada")
+
+
+def _websocket_user(websocket: WebSocket) -> CurrentUser | None:
+    """Lê o JWT de `?token=` ou do header Authorization, sem quebrar o mock."""
+    authorization = websocket.headers.get("authorization", "")
+    token = websocket.query_params.get("token")
+    if not token and authorization.lower().startswith("bearer "):
+        token = authorization[7:].strip()
+    if not token:
+        return None
+    try:
+        payload = decode_access_token(token)
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError) as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido") from exc
+    return CurrentUser(user_id=payload["sub"], google_id=payload.get("google_id"))
+
+
+def _validate_agent_for_session(session: dict, agent_name: AgentName) -> None:
+    selected_agent = session.get("selected_agent")
+    if selected_agent and agent_name not in {"brainstorm", selected_agent}:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Esta sessão foi criada para o agente final '{selected_agent}'.",
+        )
+
+
+async def _persist_workflow_message(session_id: str, agent_name: str, role: str, content: str, hidden: bool = False) -> None:
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await add_workflow_message(conn, session_id, agent_name, role, content, hidden)
+
+
 def _is_non_empty_file(path: Path) -> bool:
     try:
         return path.is_file() and path.stat().st_size > 0
@@ -154,12 +282,17 @@ def _is_non_empty_file(path: Path) -> bool:
         return False
 
 
-def _graph_config(session_id: str) -> dict:
+def _graph_config(session_id: str, agent_name: str | None = None) -> dict:
+    configurable = {
+        "thread_id": _workflow_chat_id(session_id),
+        "user_id": WORKFLOW_USER_ID_STR,
+        "work_dir": str(_workflow_workspace(session_id)),
+    }
+    if agent_name:
+        configurable["agent_name"] = agent_name
     return {
         "configurable": {
-            "thread_id": f"workflow-{session_id}",
-            "user_id": "workflow-demo-user",
-            "work_dir": str(workspace_for_chat("workflow-demo-user", f"workflow-{session_id}")),
+            **configurable,
         }
     }
 
@@ -167,8 +300,8 @@ def _graph_config(session_id: str) -> dict:
 def _workflow_state(session: dict, session_id: str, text: str, agent_name: AgentName) -> dict:
     return {
         "messages": _history(session["messages"]) + [HumanMessage(content=text)],
-        "chat_id": f"workflow-{session_id}",
-        "user_id": "workflow-demo-user",
+        "chat_id": _workflow_chat_id(session_id),
+        "user_id": WORKFLOW_USER_ID_STR,
         "context": None,
         "agent_name": GRAPH_AGENT_NAMES[agent_name],
         "selected_agent": None,
@@ -177,7 +310,7 @@ def _workflow_state(session: dict, session_id: str, text: str, agent_name: Agent
 
 
 def _workflow_artifacts(session_id: str, agent_name: AgentName) -> dict:
-    sandbox_dir = workspace_for_chat("workflow-demo-user", f"workflow-{session_id}") / "sandbox"
+    sandbox_dir = _workflow_workspace(session_id) / "sandbox"
     if agent_name == "brainstorm":
         filename = "planning.json"
     elif agent_name in {"debate", "generic", "lesson_plan", "political_leteracy"}:
@@ -196,26 +329,27 @@ def _workflow_artifacts(session_id: str, agent_name: AgentName) -> dict:
 
 
 def _has_brainstorm_conversation_after(path: Path, session_id: str) -> bool:
-    """Confirma conversa ou resposta do agente depois do planning.json."""
+    """Confirma uma conversa real do brainstorm sem depender de timestamps."""
+    del path  # O arquivo é validado separadamente em _advance_validation_errors.
     try:
-        file_timestamp = path.stat().st_mtime
-    except OSError:
+        messages = memory_store.messages(session_id)
+    except KeyError:
         return False
 
-    for message in memory_store.messages(session_id):
-        if message.get("agent_name") != "brainstorm":
-            continue
-        is_visible_user = message.get("role") == "user" and message.get("hidden") is not True
-        is_agent_response = message.get("role") == "assistant"
-        if not (is_visible_user or is_agent_response):
-            continue
-        try:
-            message_timestamp = datetime.fromisoformat(message["created_at"]).timestamp()
-        except (KeyError, TypeError, ValueError, OverflowError):
-            continue
-        if message_timestamp > file_timestamp:
-            return True
-    return False
+    has_visible_user_message = any(
+        message.get("agent_name") == "brainstorm"
+        and message.get("role") == "user"
+        and message.get("hidden") is not True
+        and bool(str(message.get("content") or "").strip())
+        for message in messages
+    )
+    has_brainstorm_response = any(
+        message.get("agent_name") == "brainstorm"
+        and message.get("role") == "assistant"
+        and bool(str(message.get("content") or "").strip())
+        for message in messages
+    )
+    return has_visible_user_message and has_brainstorm_response
 
 
 async def _stream_graph_response(
@@ -258,11 +392,13 @@ async def _run_streamed_message(
     body: WorkflowMessageIn,
     emit: Callable[[dict], Awaitable[None]],
 ) -> dict:
-    session = _session_or_404(session_id)
+    session = await _ensure_session(session_id)
+    _validate_agent_for_session(session, body.agent_name)
     text = body.text.strip()
     if not text:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="A mensagem não pode ficar vazia")
 
+    await _persist_workflow_message(session_id, body.agent_name, "user", text, body.hidden)
     memory_store.add_message(
         session_id,
         role="user",
@@ -271,13 +407,20 @@ async def _run_streamed_message(
         hidden=body.hidden,
     )
     state = _workflow_state(session, session_id, text, body.agent_name)
-    reply_text = await _stream_graph_response(state, _graph_config(session_id), emit)
+    try:
+        reply_text = await _stream_graph_response(state, _graph_config(session_id, body.agent_name), emit)
+    finally:
+        try:
+            await persist_workflow_files(session_id)
+        except Exception:
+            logger.exception("Não foi possível persistir o sandbox da sessão %s", session_id)
     reply = memory_store.add_message(
         session_id,
         role="assistant",
         content=reply_text,
         agent_name=body.agent_name,
     )
+    await _persist_workflow_message(session_id, body.agent_name, "assistant", reply_text)
     payload = {
         "type": "done",
         "session_id": session_id,
@@ -308,7 +451,7 @@ def _advance_allowed(session_id: str, from_agent: str) -> bool:
 
 
 def _advance_validation_errors(session_id: str, from_agent: str) -> list[str]:
-    sandbox_dir = workspace_for_chat("workflow-demo-user", f"workflow-{session_id}") / "sandbox"
+    sandbox_dir = _workflow_workspace(session_id) / "sandbox"
     path = sandbox_dir / "planning.json"
     errors: list[str] = []
     if from_agent == "brainstorm":
@@ -341,24 +484,97 @@ def _advance_validation_errors(session_id: str, from_agent: str) -> list[str]:
 
 
 @router.post("/sessions", response_model=WorkflowSessionOut)
-async def create_workflow_session():
-    session = memory_store.create_session()
+async def create_workflow_session(
+    body: WorkflowSessionCreateIn,
+    user: CurrentUser | None = Depends(get_optional_current_user),
+):
+    if user is None and body.user_id != WORKFLOW_USER_ID:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"O usuário mock disponível é o id {WORKFLOW_USER_ID}",
+        )
+
+    # O id do workdir é persistido junto da sessão para permitir rastrear a
+    # relação entre o banco e workdirs/<id>/sandbox.
+    session_uuid = uuid4()
+    session_id_hint = str(session_uuid)
+    workdir_id = workspace_id_for_chat(WORKFLOW_USER_ID_STR, _workflow_chat_id(session_id_hint))
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await insert_workflow_session(
+            conn,
+            session_uuid,
+            WORKFLOW_USER_ID,
+            body.agent_name,
+            workdir_id,
+            owner_user_id=user.user_id if user else None,
+        )
+
+    session_id = str(row["id"])
+    session = memory_store.create_session(
+        session_id=session_id,
+        created_at=row["created_at"].isoformat(),
+        selected_agent=row["selected_agent"],
+    )
     # Prepara o sandbox no momento em que a sessão nasce. Antes disso ele só
     # era criado quando o agente chamava uma ferramenta pela primeira vez.
     await _extrai_sandbox_dir(
         {
             "configurable": {
-                "user_id": "workflow-demo-user",
-                "thread_id": f"workflow-{session['id']}",
+                "user_id": WORKFLOW_USER_ID_STR,
+                "thread_id": _workflow_chat_id(session["id"]),
+                "agent_name": body.agent_name or "brainstorm",
             }
         }
     )
+    await persist_workflow_files(session["id"])
     return session
 
 
+@router.get("/sessions", response_model=list[WorkflowSessionSummaryOut])
+async def list_workflow_sessions(
+    user_id: int = Query(default=WORKFLOW_USER_ID, ge=1),
+    user: CurrentUser | None = Depends(get_optional_current_user),
+):
+    if user is None and user_id != WORKFLOW_USER_ID:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"O usuário mock disponível é o id {WORKFLOW_USER_ID}",
+        )
+
+    try:
+        pool = get_pool()
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Banco de dados indisponível. Verifique DATABASE_URL no .env.",
+        ) from exc
+    async with pool.acquire() as conn:
+        rows = (
+            await get_workflow_sessions_for_owner(conn, user.user_id)
+            if user
+            else await get_workflow_sessions(conn, user_id)
+        )
+    return [
+        {
+            "id": str(row["id"]),
+            "created_at": row["created_at"].isoformat(),
+            "selected_agent": row["selected_agent"],
+            "message_count": row["message_count"],
+            "last_message_at": row["last_message_at"].isoformat() if row["last_message_at"] else None,
+            "last_message": row["last_message"],
+        }
+        for row in rows
+    ]
+
+
 @router.get("/sessions/{session_id}", response_model=WorkflowSessionOut)
-async def get_workflow_session(session_id: str):
-    return _session_or_404(session_id)
+async def get_workflow_session(
+    session_id: str,
+    user: CurrentUser | None = Depends(get_optional_current_user),
+):
+    await _ensure_session_access(session_id, user)
+    return await _ensure_session(session_id)
 
 
 @router.websocket("/sessions/{session_id}/ws")
@@ -366,7 +582,9 @@ async def workflow_socket(websocket: WebSocket, session_id: str):
     """Transmite a resposta da LLM e sinaliza a conclusão com um evento done."""
     await websocket.accept()
     try:
-        _session_or_404(session_id)
+        websocket_user = _websocket_user(websocket)
+        await _ensure_session_access(session_id, websocket_user)
+        await _ensure_session(session_id)
     except HTTPException as exc:
         await websocket.close(code=1008, reason=str(exc.detail))
         return
@@ -416,8 +634,14 @@ async def workflow_socket(websocket: WebSocket, session_id: str):
 
 
 @router.post("/sessions/{session_id}/messages", response_model=WorkflowReplyOut)
-async def send_workflow_message(session_id: str, body: WorkflowMessageIn):
-    session = _session_or_404(session_id)
+async def send_workflow_message(
+    session_id: str,
+    body: WorkflowMessageIn,
+    user: CurrentUser | None = Depends(get_optional_current_user),
+):
+    await _ensure_session_access(session_id, user)
+    session = await _ensure_session(session_id)
+    _validate_agent_for_session(session, body.agent_name)
     text = body.text.strip()
     if not text:
         raise HTTPException(
@@ -425,6 +649,7 @@ async def send_workflow_message(session_id: str, body: WorkflowMessageIn):
             detail="A mensagem não pode ficar vazia",
         )
     
+    await _persist_workflow_message(session_id, body.agent_name, "user", text, body.hidden)
     memory_store.add_message(
         session_id,
         role="user",
@@ -435,8 +660,8 @@ async def send_workflow_message(session_id: str, body: WorkflowMessageIn):
 
     state = {
         "messages": _history(session["messages"]) + [HumanMessage(content=text)],
-        "chat_id": f"workflow-{session_id}",
-        "user_id": "workflow-demo-user",
+        "chat_id": _workflow_chat_id(session_id),
+        "user_id": WORKFLOW_USER_ID_STR,
         "context": None,
         "agent_name": body.agent_name,
         "selected_agent": None,
@@ -449,18 +674,23 @@ async def send_workflow_message(session_id: str, body: WorkflowMessageIn):
         # resolver o diretório e falha antes de acessar planning.json.
         graph_config = {
             "configurable": {
-                "thread_id": f"workflow-{session_id}",
-                "user_id": "workflow-demo-user",
-                "work_dir": str(workspace_for_chat("workflow-demo-user", f"workflow-{session_id}")),
+                "thread_id": _workflow_chat_id(session_id),
+                "user_id": WORKFLOW_USER_ID_STR,
+                "work_dir": str(_workflow_workspace(session_id)),
+                "agent_name": body.agent_name,
             }
         }
         result = await GRAPH_BUILDER.ainvoke(state, config=graph_config)
         reply_text = _clean_agent_text(result["messages"][-1].content)
-        
     except Exception:
         # A entrada do usuário já foi salva. Deixamos o erro chegar ao front
         # para que uma falha do provedor não seja confundida com resposta do agente.
         raise
+    finally:
+        try:
+            await persist_workflow_files(session_id)
+        except Exception:
+            logger.exception("Não foi possível persistir o sandbox da sessão %s", session_id)
 
     reply = memory_store.add_message(
         session_id,
@@ -468,17 +698,24 @@ async def send_workflow_message(session_id: str, body: WorkflowMessageIn):
         content=reply_text,
         agent_name=body.agent_name,
     )
+    await _persist_workflow_message(session_id, body.agent_name, "assistant", reply_text)
     html_url = None
     if body.agent_name in {"debate", "generic", "lesson_plan", "political_leteracy"}:
-        html_path = workspace_for_chat("workflow-demo-user", f"workflow-{session_id}") / "sandbox" / "HTML.html"
+        html_path = _workflow_workspace(session_id) / "sandbox" / "HTML.html"
         if html_path.is_file():
             html_url = f"/api/workflow/sessions/{session_id}/html"
     return {"session_id": session_id, "message": reply, "html_url": html_url}
 
 
 @router.post("/sessions/{session_id}/advance")
-async def advance_workflow(session_id: str, body: WorkflowAdvanceIn):
+async def advance_workflow(
+    session_id: str,
+    body: WorkflowAdvanceIn,
+    user: CurrentUser | None = Depends(get_optional_current_user),
+):
     """Valida o arquivo obrigatório antes de trocar de agente."""
+    await _ensure_session_access(session_id, user)
+    await _ensure_session(session_id)
     if _advance_allowed(session_id, body.from_agent):
         payload = {
             "allowed": True,
@@ -495,6 +732,7 @@ async def advance_workflow(session_id: str, body: WorkflowAdvanceIn):
             agent_name=body.from_agent,
             hidden=True,
         ),
+        user,
     )
     allowed = _advance_allowed(session_id, body.from_agent)
     if allowed:

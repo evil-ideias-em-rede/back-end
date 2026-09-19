@@ -8,6 +8,7 @@ const state = {
   streamingMessage: null,
   artifacts: {},
   planningNeedsConversation: false,
+  previousSessions: [],
 };
 
 const stepCopy = document.querySelector("#step-copy");
@@ -266,6 +267,102 @@ function updateDocumentPreview(filename, content) {
   workspace.classList.add("has-document-preview");
 }
 
+function formatSessionDate(value) {
+  if (!value) return "Data desconhecida";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Data desconhecida";
+  return date.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+}
+
+function renderPreviousSessions() {
+  return `
+    <section class="previous-sessions">
+      <div class="previous-sessions-heading">
+        <h3>Chats anteriores</h3>
+        <span>${state.previousSessions.length ? `${state.previousSessions.length} encontrada${state.previousSessions.length === 1 ? "" : "s"}` : "Nenhum salvo"}</span>
+      </div>
+      ${state.previousSessions.length ? `<div class="previous-sessions-list">
+        ${state.previousSessions.map((session) => {
+          const agentName = AGENTS[session.selected_agent]?.[0] || "Agente não definido";
+          const preview = session.last_message || "Sessão iniciada, sem mensagens ainda.";
+          return `
+            <button type="button" class="previous-session" data-session-id="${escapeHtml(session.id)}">
+              <span class="previous-session-topline"><strong>${escapeHtml(agentName)}</strong><time>${escapeHtml(formatSessionDate(session.last_message_at || session.created_at))}</time></span>
+              <span class="previous-session-preview">${escapeHtml(preview)}</span>
+              <span class="previous-session-count">${session.message_count} mensagem${session.message_count === 1 ? "" : "s"}</span>
+            </button>
+          `;
+        }).join("")}
+      </div>` : '<p class="previous-sessions-empty">Nenhum chat salvo para o usuário atual.</p>'}
+    </section>
+  `;
+}
+
+async function loadPreviousSessions() {
+  try {
+    const response = await fetch("/api/workflow/sessions?user_id=10");
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.detail || "Não foi possível carregar as sessões anteriores.");
+    state.previousSessions = data;
+    if (state.step === 0 && !state.sessionId) renderStep();
+  } catch (error) {
+    state.previousSessions = [];
+    if (state.step === 0 && !state.sessionId) setError(error.message);
+  }
+}
+
+async function resumeSession(sessionId) {
+  setError("");
+  setLoading(true);
+  closeWorkflowSocket();
+  try {
+    const response = await fetch(`/api/workflow/sessions/${encodeURIComponent(sessionId)}`);
+    const session = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(session.detail || "Não foi possível abrir a sessão.");
+
+    state.sessionId = session.id;
+    state.messages = (session.messages || []).filter((message) => message.hidden !== true);
+    const messageAgent = state.messages.find((message) => AGENTS[message.agent_name])?.agent_name;
+    state.activeAgent = session.selected_agent || messageAgent || "debate";
+    state.streamingMessage = null;
+    state.artifacts = {};
+    state.planningNeedsConversation = false;
+    htmlEdits = JSON.parse(localStorage.getItem(`html-edits-${state.sessionId}`) || "{}");
+    htmlPreview.src = "about:blank";
+    htmlPreviewCard.hidden = true;
+    documentPreviewCard.hidden = true;
+    workspace.classList.remove("has-html-preview", "has-document-preview");
+    htmlEditPanel.hidden = true;
+    selectedHtmlId = null;
+    htmlEditInput.value = "";
+    pendingChatFile = null;
+
+    const hasFinalConversation = state.messages.some(
+      (message) => message.agent_name === state.activeAgent,
+    );
+    state.step = hasFinalConversation ? 2 : 1;
+    renderStep();
+
+    if (state.step === 1) {
+      const planningUrl = `/api/workflow/sessions/${state.sessionId}/planning.json?v=${Date.now()}`;
+      const planningResponse = await fetch(planningUrl);
+      if (planningResponse.ok) {
+        const content = await planningResponse.text();
+        state.artifacts["planning.json"] = content;
+        updateDocumentPreview("planning.json", content);
+      }
+    } else {
+      const htmlUrl = `/api/workflow/sessions/${state.sessionId}/html`;
+      const htmlResponse = await fetch(`${htmlUrl}?v=${Date.now()}`);
+      if (htmlResponse.ok) updateHtmlPreview(htmlUrl);
+    }
+  } catch (error) {
+    setError(error.message);
+  } finally {
+    setLoading(false);
+  }
+}
+
 async function selectPlanningItem(planningId) {
   if (!state.sessionId || state.loading) return;
   setError("");
@@ -395,65 +492,90 @@ function renderChatStage({ agentName, inputLabel, placeholder, sendLabel, contin
 function renderStep() {
   renderProgress();
   if (state.step === 0) {
+    stepCopy.innerHTML = '<h2>Escolha o agente</h2><p>Defina agora qual agente vai conduzir o resultado final. Depois, você passará pelo brainstorm antes de conversar com ele.</p>';
+    const options = Object.entries(AGENTS).map(([value, [name, description]]) => `
+      <div class="agent-option">
+        <input id="agent-${value}" type="radio" name="agent" value="${value}" ${state.activeAgent === value ? "checked" : ""} />
+        <label for="agent-${value}"><strong>${name}</strong><span>${description}</span></label>
+      </div>
+    `).join("");
+    stepContent.innerHTML = `
+      ${renderPreviousSessions()}
+      <div class="agent-grid">${options}</div>
+      <div class="actions"><button class="primary-button" id="start-brainstorm" type="button">Começar brainstorm →</button></div>
+    `;
+    document.querySelectorAll(".previous-session").forEach((button) => {
+      button.addEventListener("click", () => resumeSession(button.dataset.sessionId));
+    });
+    document.querySelectorAll('input[name="agent"]').forEach((input) => {
+      input.addEventListener("change", (event) => {
+        state.activeAgent = event.target.value;
+        renderStep();
+      });
+    });
+    document.querySelector("#start-brainstorm").addEventListener("click", async () => {
+      setError("");
+      setLoading(true);
+      try {
+        await createSession(state.activeAgent);
+        state.step = 1;
+        renderStep();
+      } catch (error) {
+        setError(error.message);
+      } finally {
+        setLoading(false);
+      }
+    });
+  } else if (state.step === 1) {
     stepCopy.innerHTML = '<h2>Comece pelo brainstorm</h2><p>Converse com o agente e explore a ideia pelo tempo que precisar. Só avance quando você decidir.</p>';
     renderChatStage({
       agentName: "brainstorm",
       inputLabel: "Sua mensagem para o brainstorm",
       placeholder: "Ex.: Quero trabalhar o tema da água com uma turma do ensino fundamental...",
       sendLabel: "Enviar para o brainstorm",
-      continueLabel: "Escolher agente final",
+      continueLabel: `Ir para ${AGENTS[state.activeAgent][0]}`,
     });
   } else {
-    stepCopy.innerHTML = '<h2>Escolha o agente final</h2><p>Escolha um agente e converse com ele até chegar ao resultado que você quer. Você pode trocar de agente a qualquer momento.</p>';
-    const options = Object.entries(AGENTS).map(([value, [name, description]]) => `
-      <div class="agent-option">
-        <input id="agent-${value}" type="radio" name="agent" value="${value}" ${state.activeAgent === value ? "checked" : ""} />
-        <label for="agent-${value}"><strong>${name}</strong></label>
-      </div>
-    `).join("");
-    stepContent.innerHTML = `
-      <div class="agent-grid">${options}</div>
-      <div class="stage-thread final-thread" id="stage-thread">${renderConversation(state.activeAgent)}</div>
-      <label class="form-label" for="stage-input">Sua mensagem para o agente</label>
-      <textarea id="stage-input" placeholder="Ex.: Ajuste a proposta para incluir uma atividade prática."></textarea>
-      <div class="attachment-row"><button class="clip-button" id="chat-attach-button" type="button" title="Anexar arquivo">📎</button><span id="chat-file-name"></span><input id="chat-file-input" type="file" hidden /></div>
-      <div class="actions"><button class="primary-button" id="send-button" type="button">Enviar mensagem ↑</button></div>
-    `;
-    document.querySelectorAll('input[name="agent"]').forEach((input) => {
-      input.addEventListener("change", async (event) => {
-        state.activeAgent = event.target.value;
-        renderStep();
-        try {
-          await sendHiddenGreeting(state.activeAgent);
-          renderStep();
-        } catch (error) {
-          setError(error.message);
-        }
-      });
-    });
-    document.querySelector("#send-button").addEventListener("click", () => sendStageMessage(state.activeAgent));
-    document.querySelector("#chat-attach-button").addEventListener("click", () => document.querySelector("#chat-file-input").click());
-    document.querySelector("#chat-file-input").addEventListener("change", (event) => {
-      pendingChatFile = event.target.files[0] || null;
-      document.querySelector("#chat-file-name").textContent = pendingChatFile ? pendingChatFile.name : "";
-    });
-    document.querySelector("#stage-input").addEventListener("keydown", (event) => {
-      if ((event.ctrlKey || event.metaKey) && event.key === "Enter") sendStageMessage(state.activeAgent);
+    const [agentName, agentDescription] = AGENTS[state.activeAgent];
+    stepCopy.innerHTML = `<h2>${agentName}</h2><p>${agentDescription} O agente escolhido no início continuará responsável pelo resultado final.</p>`;
+    renderChatStage({
+      agentName: state.activeAgent,
+      inputLabel: `Sua mensagem para o agente de ${agentName.toLowerCase()}`,
+      placeholder: "Ex.: Ajuste a proposta para incluir uma atividade prática.",
+      sendLabel: "Enviar mensagem",
     });
   }
   scrollStageThreadToBottom();
 }
 
-async function createSession() {
+async function createSession(agentName = state.activeAgent) {
   closeWorkflowSocket();
-  const response = await fetch("/api/workflow/sessions", { method: "POST" });
-  if (!response.ok) throw new Error("Não foi possível iniciar a sessão.");
+  const response = await fetch("/api/workflow/sessions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: 10, agent_name: agentName }),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.detail || "Não foi possível iniciar a sessão.");
+  }
   const session = await response.json();
   state.sessionId = session.id;
+  state.previousSessions = [
+    {
+      id: session.id,
+      created_at: session.created_at,
+      selected_agent: session.selected_agent || agentName,
+      message_count: 0,
+      last_message_at: null,
+      last_message: null,
+    },
+    ...state.previousSessions.filter((item) => item.id !== session.id),
+  ];
   htmlEdits = JSON.parse(localStorage.getItem(`html-edits-${state.sessionId}`) || "{}");
   state.messages = session.messages.filter((message) => message.hidden !== true);
   state.step = 0;
-  state.activeAgent = "debate";
+  state.activeAgent = agentName;
   state.streamingMessage = null;
   state.artifacts = {};
   state.planningNeedsConversation = false;
@@ -468,6 +590,28 @@ async function createSession() {
   htmlEdits = {};
   htmlEditInput.value = "";
   renderStep();
+}
+
+function resetSessionSelection() {
+  closeWorkflowSocket();
+  state.sessionId = null;
+  state.step = 0;
+  state.activeAgent = "debate";
+  state.messages = [];
+  state.streamingMessage = null;
+  state.artifacts = {};
+  state.planningNeedsConversation = false;
+  setAgentFeedback("");
+  htmlPreview.src = "about:blank";
+  htmlPreviewCard.hidden = true;
+  documentPreviewCard.hidden = true;
+  workspace.classList.remove("has-html-preview", "has-document-preview");
+  htmlEditPanel.hidden = true;
+  selectedHtmlId = null;
+  htmlEdits = {};
+  htmlEditInput.value = "";
+  renderStep();
+  loadPreviousSessions();
 }
 
 async function callAgent(agentName, text, { showUserMessage = true } = {}) {
@@ -530,7 +674,7 @@ async function requestAdvance(fromAgent) {
     }
     await refreshWorkflowArtifacts(data);
     if (data.allowed) {
-      state.step = 1;
+      state.step = 2;
       renderStep();
       await sendHiddenGreeting(state.activeAgent);
       renderStep();
@@ -573,12 +717,13 @@ async function sendStageMessage(agentName) {
   }
 }
 
-document.querySelector("#new-session").addEventListener("click", async () => {
-  try { setError(""); await createSession(); }
-  catch (error) { setError(error.message); }
+document.querySelector("#new-session").addEventListener("click", () => {
+  setError("");
+  resetSessionSelection();
 });
 
-createSession().catch((error) => setError(error.message));
+renderStep();
+loadPreviousSessions();
 
 htmlEditSubmit.addEventListener("click", async () => {
   if (selectedHtmlId) htmlEdits[selectedHtmlId] = htmlEditInput.value.trim();

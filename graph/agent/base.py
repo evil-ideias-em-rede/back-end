@@ -26,6 +26,7 @@ def _safe_config(state, config: RunnableConfig | None) -> RunnableConfig:
     user_id = str(state["user_id"])
     chat_id = str(state["chat_id"])
     configured = dict((config or {}).get("configurable", {}))
+    agent_name = state.get("agent_name") or configured.get("agent_name")
     configured.update(
         {
             "user_id": user_id,
@@ -33,6 +34,8 @@ def _safe_config(state, config: RunnableConfig | None) -> RunnableConfig:
             "work_dir": str(workspace_for_chat(user_id, chat_id)),
         }
     )
+    if agent_name:
+        configured["agent_name"] = str(agent_name)
     return {**(config or {}), "configurable": configured}
 
 

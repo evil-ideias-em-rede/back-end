@@ -45,6 +45,7 @@ async def run_chat_turn(
             "thread_id": chat_id,
             "user_id": user_id,
             "work_dir": str(workspace_for_chat(user_id, chat_id)),
+            "agent_name": agent_name,
         }
     }
     result = await GRAPH_BUILDER.ainvoke(initial_state, config=graph_config)

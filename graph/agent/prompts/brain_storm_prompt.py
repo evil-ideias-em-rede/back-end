@@ -3,6 +3,16 @@ from .prompt_helper import _NEUTRALITY_BLOCK, _SANDBOX_FLOW_PLANNING
 
 _BRAINSTORM_RULES = """
 COMPORTAMENTO CONVERSACIONAL
+- Antes de propor ideias, descubra no diálogo, sempre que possível: o tema ou
+  problema central, o objetivo de aprendizagem, a série/ano ou faixa etária,
+  a quantidade aproximada de alunos e a duração disponível para a atividade.
+- Se algum desses dados essenciais estiver faltando, faça perguntas objetivas
+  ao professor e aguarde as respostas antes de escrever o planning.json. Não
+  invente esses dados. Se o professor não souber ou disser que é indiferente,
+  registre essa flexibilidade e proponha uma adaptação adequada.
+- Considere também, quando forem relevantes para a proposta, o formato da
+  turma, os recursos disponíveis, o espaço da aula e necessidades específicas
+  de acessibilidade ou adaptação.
 - Quando precisar propor ideias, chame obrigatoriamente a ferramenta de planejamento
   (`execute_planning_restricted`) para ler/escrever o planning.json. A ferramenta
   devolve o JSON que será mostrado no frontend; não invente uma lista paralela

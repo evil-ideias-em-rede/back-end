@@ -64,11 +64,25 @@ textarea:focus { border-color: var(--purple); box-shadow: 0 0 0 3px var(--lavend
 .secondary-button { border: 1px solid var(--line); border-radius: 10px; padding: 11px 16px; color: var(--muted); background: #fff; }
 
 .agent-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.previous-sessions { margin-bottom: 24px; }
+.previous-sessions-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 9px; }
+.previous-sessions-heading h3 { margin: 0; font-size: 13px; }
+.previous-sessions-heading span, .previous-sessions-empty { color: var(--muted); font-size: 12px; }
+.previous-sessions-empty { margin: 0 0 20px; }
+.previous-sessions-list { display: grid; max-height: 190px; gap: 8px; overflow-y: auto; padding-right: 3px; }
+.previous-session { display: block; width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; color: inherit; background: #fff; text-align: left; transition: .15s ease; }
+.previous-session:hover, .previous-session:focus-visible { border-color: var(--purple); background: var(--lavender); outline: none; }
+.previous-session-topline { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; }
+.previous-session-topline strong { color: var(--purple); font-size: 12px; }
+.previous-session-topline time { color: var(--muted); font-size: 11px; }
+.previous-session-preview { display: block; overflow: hidden; color: #55544f; font-size: 12px; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
+.previous-session-count { display: block; margin-top: 5px; color: var(--muted); font-size: 10px; }
 .agent-option { position: relative; }
 .agent-option input { position: absolute; opacity: 0; }
 .agent-option label { display: block; height: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; background: #fff; transition: .15s ease; }
 .agent-option label:hover, .agent-option input:checked + label { border-color: var(--purple); background: var(--lavender); }
 .agent-option strong { display: block; margin-bottom: 5px; }
+.agent-option label span { display: block; color: var(--muted); font-size: 12px; line-height: 1.45; }
 
 .preview-card { display: flex; min-width: 0; height: 100%; flex-direction: column; padding: 23px; overflow: hidden; }
 .preview-heading { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; margin-bottom: 17px; }

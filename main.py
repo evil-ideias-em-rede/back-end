@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from db.pool import close_pool, init_pool
-from routers import auth_router, chat_router, html_pdf_router, sandbox_router, workflow_router
+from routers import auth_router, chat_router, content_router, html_pdf_router, sandbox_router, workflow_router
 
 
 @asynccontextmanager
@@ -30,6 +30,7 @@ app.add_middleware(
 
 app.include_router(auth_router.router)
 app.include_router(chat_router.router)
+app.include_router(content_router.router)
 app.include_router(workflow_router.router)
 app.include_router(html_pdf_router.router)
 app.include_router(sandbox_router.router)
