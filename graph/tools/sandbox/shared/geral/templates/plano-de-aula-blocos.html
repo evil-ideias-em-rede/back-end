@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Template - Plano de Aula (Blocos Simples)</title>
+    <style>
+        /* Fundo da tela na visualização web */
+        body {
+            background-color: #cbd5e0;
+            display: flex;
+            justify-content: center;
+            padding: 40px 20px;
+            font-family: Arial, Helvetica, sans-serif; /* Fonte sem serifa para replicar o design */
+            margin: 0;
+        }
+
+        /* Estrutura da Folha A4 em Retrato (Portrait) */
+        .a4-portrait-paper {
+            background-color: white;
+            width: 210mm;
+            min-height: 297mm; /* Proporção exata do A4 */
+            padding: 20mm;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2);
+            color: black;
+            box-sizing: border-box;
+        }
+
+        /* Título Principal */
+        .plan-main-title {
+            text-align: center;
+            font-size: 34pt;
+            font-weight: 900; /* Extra negrito */
+            text-transform: uppercase;
+            margin-bottom: 30px;
+            letter-spacing: 2px;
+        }
+
+        /* Sistema de Grid (6 Colunas para garantir alinhamento perfeito) */
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 15px; /* Espaçamento entre os blocos */
+        }
+
+        /* Estilo Base das Caixas */
+        .box {
+            border: 2px solid black; /* Borda grossa preta */
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+        }
+
+        /* Rótulos de cada caixa (Série, Tópico, etc.) */
+        .box-label {
+            font-weight: bold;
+            font-size: 11pt;
+            margin-bottom: 8px;
+            color: black;
+        }
+
+        /* Texto orientativo para o Agente LLM */
+        .placeholder {
+            color: #555;
+            font-style: italic;
+            font-size: 10.5pt;
+            line-height: 1.4;
+            text-align: justify;
+        }
+
+        /* Controle de Largura via Grid (span) */
+        .span-2 { grid-column: span 2; } /* Ocupa 1/3 da tela */
+        .span-3 { grid-column: span 3; } /* Ocupa 1/2 da tela */
+        .span-4 { grid-column: span 4; } /* Ocupa 2/3 da tela */
+        .span-6 { grid-column: span 6; } /* Ocupa a tela inteira */
+
+        /* Controle de Altura das Caixas */
+        .h-small { min-height: 50px; }
+        .h-medium { min-height: 140px; }
+        .h-large { min-height: 300px; }
+        .h-xlarge { min-height: 180px; }
+
+        /* Regras para Impressão ou Geração de PDF */
+        @media print {
+            @page {
+                size: A4 portrait;
+                margin: 15mm;
+            }
+            body {
+                background-color: white;
+                padding: 0;
+            }
+            .a4-portrait-paper {
+                box-shadow: none;
+                width: 100%;
+                min-height: auto;
+                padding: 0;
+                margin: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="a4-portrait-paper">
+        
+        <!-- Título -->
+        <div class="plan-main-title">Plano de Aula</div>
+
+        <!-- Início do Container Grid -->
+        <div class="grid-container">
+
+            <!-- LINHA 1 (3 caixas dividindo a tela) -->
+            <div class="box span-2 h-small">
+                <span class="box-label">Série:</span>
+                <span class="placeholder">[Ano/Série escolar sugerida]</span>
+            </div>
+            <div class="box span-2 h-small">
+                <span class="box-label">Disciplina:</span>
+                <span class="placeholder">[Nome do componente curricular]</span>
+            </div>
+            <div class="box span-2 h-small">
+                <span class="box-label">Data:</span>
+                <span class="placeholder">[Data de aplicação prevista]</span>
+            </div>
+
+            <!-- LINHA 2 (Tópico mais largo, Aula menor) -->
+            <div class="box span-4 h-small">
+                <span class="box-label">Tópico:</span>
+                <span class="placeholder">[Nome central do debate ou assunto]</span>
+            </div>
+            <div class="box span-2 h-small">
+                <span class="box-label">Aula n°:</span>
+                <span class="placeholder">[Número ou sequência da aula]</span>
+            </div>
+
+            <!-- LINHA 3 (Caixa Inteira) -->
+            <div class="box span-6 h-medium">
+                <span class="box-label">Foco e objetivos da aula:</span>
+                <span class="placeholder">[Descreva aqui a intenção pedagógica principal. Ex: Focar na análise crítica de discursos políticos e desenvolver a capacidade argumentativa através do estudo de transcrições legislativas reais.]</span>
+            </div>
+
+            <!-- LINHA 4 (Tela dividida ao meio) -->
+            <div class="box span-3 h-medium">
+                <span class="box-label">Materiais necessários:</span>
+                <span class="placeholder">
+                    - [Recurso 1: Ex. Transcrição recuperada do sistema]<br>
+                    - [Recurso 2: Projetor de tela]<br>
+                    - [Recurso 3: Marcadores, etc.]
+                </span>
+            </div>
+            <div class="box span-3 h-medium">
+                <span class="box-label">Objetivos de aprendizagem:</span>
+                <span class="placeholder">[Mapeie aqui os objetivos ligados à BNCC ou às expectativas de aprendizagem. Ex: Compreender vieses ideológicos; identificar contradições em debates públicos.]</span>
+            </div>
+
+            <!-- LINHA 5 (Caixa Grande Inteira para as Atividades) -->
+            <div class="box span-6 h-large">
+                <span class="box-label">Estrutura / Atividade:</span>
+                <span class="placeholder">
+                    [Descreva o passo a passo cronológico da aula.]<br><br>
+                    [1. Introdução: Apresentação do contexto do debate escolhido...]<br>
+                    [2. Desenvolvimento: Divisão da turma em grupos para lerem falas favoráveis e contrárias...]<br>
+                    [3. Dinâmica: Realização de uma roda de conversa onde os alunos apresentam as contradições encontradas nas fontes primárias...]<br>
+                    [4. Fechamento: Síntese liderada pelo professor relacionando os dados à teoria estudada.]
+                </span>
+            </div>
+
+            <!-- LINHA 6 (Caixa Inteira Final) -->
+            <div class="box span-6 h-xlarge">
+                <span class="box-label">Avaliação:</span>
+                <span class="placeholder">[Indique como o aluno será avaliado nesta atividade. Ex: Avaliação qualitativa da capacidade de argumentação e respeito às opiniões divergentes durante a roda de conversa.]</span>
+            </div>
+
+        </div>
+        <!-- Fim do Container Grid -->
+
+    </div>
+
+</body>
+</html>

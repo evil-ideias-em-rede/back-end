@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Template - Plano de Aula (Formato Tabela)</title>
+    <style>
+        /* Fundo da tela na visualização web */
+        body {
+            background-color: #cbd5e0;
+            display: flex;
+            justify-content: center;
+            padding: 40px 20px;
+            font-family: 'Times New Roman', Times, serif;
+            margin: 0;
+        }
+
+        /* Estrutura da Folha A4 em Paisagem (Landscape) */
+        .a4-landscape-paper {
+            background-color: white;
+            width: 297mm;
+            min-height: 210mm;
+            padding: 15mm 20mm;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2);
+            color: black;
+            box-sizing: border-box;
+        }
+
+        /* Tabelas Gerais */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11pt;
+            margin-bottom: 20px;
+        }
+
+        th, td {
+            border: 1px solid black;
+            padding: 6px 8px;
+            vertical-align: top;
+            text-align: left;
+        }
+
+        /* Tabela de Cabeçalho (Informações Gerais) */
+        .header-table td:nth-child(1) {
+            width: 45%;
+        }
+        .header-table td:nth-child(2) {
+            width: 30%;
+        }
+        .header-table td:nth-child(3) {
+            width: 25%;
+        }
+
+        /* Título Centralizado */
+        .plan-main-title {
+            text-align: center;
+            font-size: 12pt;
+            text-transform: uppercase;
+            margin: 20px 0;
+            letter-spacing: 1px;
+        }
+
+        /* Tabela Principal de Conteúdos */
+        .content-table th {
+            font-weight: normal;
+            font-size: 11pt;
+            text-align: left;
+        }
+
+        .content-table td {
+            font-size: 10.5pt;
+            text-align: justify;
+            line-height: 1.3;
+        }
+
+        /* Seção de Referências */
+        .references-section {
+            font-size: 10.5pt;
+            line-height: 1.4;
+            text-align: justify;
+        }
+
+        /* Estilo dos Placeholders para o Agente Preencher */
+        .placeholder {
+            color: #555;
+            font-style: italic;
+        }
+
+        /* Regras para Impressão ou Geração de PDF */
+        @media print {
+            @page {
+                size: A4 landscape;
+                margin: 15mm;
+            }
+            body {
+                background-color: white;
+                padding: 0;
+            }
+            .a4-landscape-paper {
+                box-shadow: none;
+                width: 100%;
+                min-height: auto;
+                padding: 0;
+                margin: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="a4-landscape-paper">
+        
+        <!-- Tabela Superior: Informações do Professor e Turma -->
+        <table class="header-table">
+            <tr>
+                <td>Professor: <span class="placeholder">[Nome do Docente]</span></td>
+                <td>Disciplina: <span class="placeholder">[Nome da Disciplina]</span></td>
+                <td>Turma: <span class="placeholder">[Identificação da Turma]</span></td>
+            </tr>
+            <tr>
+                <td>Conteúdo: <span class="placeholder">[Tema central e subtemas]</span></td>
+                <td>Turno: <span class="placeholder">[Turno da Aula]</span></td>
+                <td>Ano: <span class="placeholder">[Série/Ano Letivo]</span></td>
+            </tr>
+            <tr>
+                <td>Duração da Aula: <span class="placeholder">[Ex: 4 aulas (50 minutos cada)]</span></td>
+                <td>Escola: <span class="placeholder">[Nome da Instituição]</span></td>
+                <td>Data: <span class="placeholder">[Data de Aplicação]</span></td>
+            </tr>
+        </table>
+
+        <!-- Título Central -->
+        <div class="plan-main-title">Plano de Aula</div>
+
+        <!-- Tabela Inferior: Estrutura Pedagógica -->
+        <table class="content-table">
+            <thead>
+                <tr>
+                    <th>Objetivos</th>
+                    <th>Conteúdos Conceituais</th>
+                    <th>Conteúdos Procedimentais</th>
+                    <th>Conteúdos Atitudinais</th>
+                    <th>Metodologia</th>
+                    <th>Recursos</th>
+                    <th>Avaliação</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>
+                        <span class="placeholder">[Descrever os objetivos que se espera alcançar. Ex: Estabelecer relações entre conceitos e eventos específicos extraídos das fontes primárias.]</span>
+                    </td>
+                    <td>
+                        <span class="placeholder">[Listar os conhecimentos teóricos: extração de conhecimentos prévios, caracterização de terminologias chave e justificação de hierarquias ou estruturas teóricas.]</span>
+                    </td>
+                    <td>
+                        <span class="placeholder">[Descrever o que os alunos farão na prática: apresentação de leituras, discussão de temas e questionamento sobre impressões extraídas de diferentes produções e discursos.]</span>
+                    </td>
+                    <td>
+                        <span class="placeholder">[Listar posturas e reflexões: compartilhar textos pertinentes, examinar representações sociais e analisar como opiniões são concebidas a partir de discursos e mídias.]</span>
+                    </td>
+                    <td>
+                        <span class="placeholder">[Definir a dinâmica da aula: aula expositiva dialogada, exibição de mídias, atividades em grupo e mediação de dúvidas.]</span>
+                    </td>
+                    <td>
+                        <span class="placeholder">[Materiais necessários: Data Show, quadro branco, pincel, textos de fontes primárias, jornais, ferramentas do sistema, etc.]</span>
+                    </td>
+                    <td>
+                        <span class="placeholder">[Critérios avaliativos: A avaliação será formativa, considerando a participação nas discussões. Solicitar produção textual final baseada nas fontes e reflexões abordadas.]</span>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- Rodapé: Referências Bibliográficas -->
+        <div class="references-section">
+            <strong>Referências:</strong> 
+            <span class="placeholder">
+                [Inserir citações padrão ABNT. Ex: BRASIL. Ministério da Educação. Base Nacional Comum Curricular (BNCC); além das Referências das transcrições, debates recuperados e artigos de suporte utilizados no planejamento.]
+            </span>
+        </div>
+
+    </div>
+
+</body>
+</html>

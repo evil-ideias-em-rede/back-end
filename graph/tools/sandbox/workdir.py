@@ -84,14 +84,30 @@ def _copy_flat_files(source_dir: Path, target_dir: Path, skip_names: set[str] | 
             shutil.copy2(source, target)
 
 
+def _copy_tree_if_missing(source_dir: Path, target_dir: Path, skip_names: set[str] | None = None) -> None:
+    """Copia uma árvore de arquivos sem substituir artefatos da conversa."""
+    if not source_dir.is_dir():
+        return
+    skip_names = skip_names or set()
+    for source in source_dir.rglob("*"):
+        if not source.is_file() or source.name in skip_names:
+            continue
+        relative = source.relative_to(source_dir)
+        target = target_dir / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if not target.exists():
+            shutil.copy2(source, target)
+
+
 def _copy_shared_files(sandbox_dir: Path, agent_name: str | None = None) -> None:
-    """Prepara os arquivos comuns e os arquivos do agente na mesma raiz."""
+    """Prepara os arquivos comuns e os arquivos do agente no sandbox."""
     # O planejamento é um artefato exclusivo do brainstorm. Os nodes finais
     # removem o arquivo e não devem recriá-lo ao preparar suas ferramentas.
     skip_names = set()
     if _agent_key(agent_name) not in {"brainstorm", "brainstorm_node"}:
         skip_names.add("planning.json")
     _copy_flat_files(SHARED_FILES_DIR, sandbox_dir, skip_names=skip_names)
+    _copy_tree_if_missing(SHARED_FILES_DIR / "geral", sandbox_dir, skip_names=skip_names)
     agent_source_dir = _agent_source_dir(agent_name)
     if agent_source_dir:
         _copy_flat_files(agent_source_dir, sandbox_dir, skip_names=skip_names)

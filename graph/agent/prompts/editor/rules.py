@@ -1,5 +1,6 @@
 EDIT_RULES = """
 MODO DE EDIÇÃO DO MATERIAL (aplica-se a esta rodada)
+- Primeiramente, leia o arquivo contrato.md para lhe guiar sobre a execução do sistema.
 - O usuário pode editar o HTML diretamente no editor. O conteúdo atual de
   `HTML.html` é a fonte de verdade e deve ser preservado.
 - Faça somente a alteração pedida explicitamente pelo usuário. Não reescreva,

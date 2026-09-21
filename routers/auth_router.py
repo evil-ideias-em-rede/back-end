@@ -1,7 +1,7 @@
 import re
 
 import asyncpg
-from db.pool import get_pool
+from db.pool import init_pool
 from auth.dependencies import CurrentUser, get_current_user
 from auth.jwt_utils import create_access_token
 from auth.google_auth import verify_google_token
@@ -66,7 +66,7 @@ async def login_google(body: GoogleLoginIn):
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc))
 
-    pool = get_pool()
+    pool = await init_pool()
     async with pool.acquire() as conn:
         user = await get_or_create_user_by_google(conn, **user_data)
 
@@ -84,7 +84,7 @@ async def login_google(body: GoogleLoginIn):
 @router.post("/register", response_model=LoginOut, status_code=status.HTTP_201_CREATED)
 async def register(body: PasswordRegisterIn):
     email = _normalize_email(body.email)
-    pool = get_pool()
+    pool = await init_pool()
     async with pool.acquire() as conn:
         if await get_user_by_email(conn, email):
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="E-mail já cadastrado")
@@ -103,7 +103,7 @@ async def register(body: PasswordRegisterIn):
 @router.post("/login", response_model=LoginOut)
 async def login(body: PasswordLoginIn):
     email = _normalize_email(body.email)
-    pool = get_pool()
+    pool = await init_pool()
     async with pool.acquire() as conn:
         user = await get_user_by_email(conn, email)
     if user is None or not verify_password(body.password, user["password_hash"]):
@@ -113,7 +113,7 @@ async def login(body: PasswordLoginIn):
 
 @router.get("/me", response_model=UserOut)
 async def me(user: CurrentUser = Depends(get_current_user)):
-    pool = get_pool()
+    pool = await init_pool()
     async with pool.acquire() as conn:
         row = await get_user_by_id(conn, user.user_id)
         schools = await list_user_schools(conn, user.user_id)
@@ -136,7 +136,7 @@ async def update_me(body: ProfileUpdateIn, user: CurrentUser = Depends(get_curre
             seen.add(key)
             school_names.append(name)
 
-    pool = get_pool()
+    pool = await init_pool()
     try:
         async with pool.acquire() as conn:
             async with conn.transaction():

@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import asyncio
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -19,10 +20,17 @@ from routers import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    try:
-        await init_pool()
-    except Exception as exc:
-        app.state.database_error = str(exc)
+    # Só libera a aplicação depois que o pool existe. Caso contrário o
+    # /health fica verde, mas as rotas de cadastro, chat e workflow retornam 500.
+    for attempt in range(5):
+        try:
+            await asyncio.wait_for(init_pool(), timeout=60)
+            break
+        except Exception:
+            await close_pool()
+            if attempt == 4:
+                raise
+            await asyncio.sleep(2)
     yield
     await close_pool()
 

@@ -1,0 +1,264 @@
+[
+  {
+    "id": "00-system-global",
+    "system": "proprio",
+    "inputs": []
+  },
+  {
+    "id": "10-roteador-de-intencao",
+    "system": "proprio",
+    "inputs": [
+      "RECENT_TURNS",
+      "SESSION_STATE",
+      "USER_MESSAGE"
+    ]
+  },
+  {
+    "id": "11-elicitacao-de-briefing",
+    "system": "global",
+    "inputs": [
+      "PARTIAL_BRIEFING",
+      "RECENT_TURNS",
+      "USER_MESSAGE"
+    ]
+  },
+  {
+    "id": "12-consulta-ao-rag",
+    "system": "proprio",
+    "inputs": [
+      "BRIEFING",
+      "DEBATE_METADATA",
+      "LEGISLATIVE_GLOSSARY",
+      "PREVIOUS_QUERIES"
+    ]
+  },
+  {
+    "id": "13-triagem-de-trechos",
+    "system": "global",
+    "inputs": [
+      "BRIEFING",
+      "DEBATE_METADATA",
+      "LEGISLATIVE_GLOSSARY",
+      "RETRIEVED_FALAS"
+    ]
+  },
+  {
+    "id": "14-selecao-de-formato-de-aula",
+    "system": "global",
+    "inputs": [
+      "BRIEFING",
+      "COVERAGE_REPORT",
+      "FORMAT_INDEX",
+      "PLANNING_NOTES",
+      "STANCE_MAP"
+    ]
+  },
+  {
+    "id": "15-casamento-bncc",
+    "system": "proprio",
+    "inputs": [
+      "BNCC_CANDIDATES",
+      "BRIEFING",
+      "LESSON_FORMAT_SUMMARY",
+      "STANCE_MAP"
+    ]
+  },
+  {
+    "id": "16-editor-no-documento",
+    "system": "global",
+    "inputs": [
+      "CURRENT_DOCUMENT",
+      "EDIT_REQUEST",
+      "EXCERPTS",
+      "PEDAGOGICAL_PRINCIPLES",
+      "SOURCE_RULES"
+    ]
+  },
+  {
+    "id": "17-selecao-de-teoria",
+    "system": "proprio",
+    "inputs": [
+      "BRIEFING",
+      "LESSON_FORMAT_SUMMARY",
+      "PLANNING_NOTES",
+      "STANCE_MAP",
+      "THEORY_INDEX"
+    ]
+  },
+  {
+    "id": "18-brainstorm",
+    "system": "global",
+    "inputs": [
+      "BRIEFING",
+      "COVERAGE_REPORT",
+      "DEBATE_METADATA",
+      "EXCERPTS",
+      "RECENT_TURNS",
+      "STANCE_MAP",
+      "USER_MESSAGE"
+    ]
+  },
+  {
+    "id": "19-especificacao",
+    "system": "global",
+    "inputs": [
+      "BNCC_SKILLS",
+      "BRIEFING",
+      "COVERAGE_REPORT",
+      "EXCERPTS",
+      "LESSON_FORMAT",
+      "PEDAGOGICAL_PRINCIPLES",
+      "PLANNING_NOTES",
+      "STANCE_MAP",
+      "THEORY"
+    ]
+  },
+  {
+    "id": "20-plano-de-aula",
+    "system": "global",
+    "inputs": [
+      "BNCC_SKILLS",
+      "BRIEFING",
+      "COVERAGE_REPORT",
+      "EXCERPTS",
+      "HTML_TEMPLATE",
+      "LEGISLATIVE_GLOSSARY",
+      "LESSON_FORMAT",
+      "PEDAGOGICAL_PRINCIPLES",
+      "SOURCE_RULES",
+      "SPECIFICATION",
+      "STANCE_MAP",
+      "TEACHER_MATERIALS",
+      "THEORY"
+    ]
+  },
+  {
+    "id": "21-roteiro-de-debate",
+    "system": "global",
+    "inputs": [
+      "BNCC_SKILLS",
+      "BRIEFING",
+      "COVERAGE_REPORT",
+      "EXCERPTS",
+      "LEGISLATIVE_GLOSSARY",
+      "LESSON_FORMAT",
+      "PEDAGOGICAL_PRINCIPLES",
+      "SOURCE_RULES",
+      "SPECIFICATION",
+      "STANCE_MAP",
+      "TEACHER_MATERIALS",
+      "THEORY"
+    ]
+  },
+  {
+    "id": "22-oficina-de-redacao",
+    "system": "global",
+    "inputs": [
+      "BNCC_SKILLS",
+      "BRIEFING",
+      "COVERAGE_REPORT",
+      "EXCERPTS",
+      "LESSON_FORMAT",
+      "PEDAGOGICAL_PRINCIPLES",
+      "SOURCE_RULES",
+      "SPECIFICATION",
+      "STANCE_MAP",
+      "TEACHER_MATERIALS",
+      "TEXT_GENRE",
+      "THEORY"
+    ]
+  },
+  {
+    "id": "23-slides",
+    "system": "global",
+    "inputs": [
+      "BNCC_SKILLS",
+      "BRIEFING",
+      "COVERAGE_REPORT",
+      "EXCERPTS",
+      "LEGISLATIVE_GLOSSARY",
+      "LESSON_FORMAT",
+      "PEDAGOGICAL_PRINCIPLES",
+      "SOURCE_RULES",
+      "SPECIFICATION",
+      "STANCE_MAP",
+      "TEACHER_MATERIALS",
+      "THEORY"
+    ]
+  },
+  {
+    "id": "24-letramento-midiatico-e-politico",
+    "system": "global",
+    "inputs": [
+      "BNCC_SKILLS",
+      "BRIEFING",
+      "COVERAGE_REPORT",
+      "EXCERPTS",
+      "LEGISLATIVE_GLOSSARY",
+      "LESSON_FORMAT",
+      "PEDAGOGICAL_PRINCIPLES",
+      "PRESS_ITEMS",
+      "SOURCE_RULES",
+      "SPECIFICATION",
+      "STANCE_MAP",
+      "TEACHER_MATERIALS",
+      "THEORY"
+    ]
+  },
+  {
+    "id": "25-criacao-livre",
+    "system": "global",
+    "inputs": [
+      "BNCC_SKILLS",
+      "BRIEFING",
+      "COVERAGE_REPORT",
+      "EXCERPTS",
+      "FORMAT_INDEX",
+      "FREE_REQUEST",
+      "LEGISLATIVE_GLOSSARY",
+      "PEDAGOGICAL_PRINCIPLES",
+      "SOURCE_RULES",
+      "SPECIFICATION",
+      "STANCE_MAP",
+      "TEACHER_MATERIALS",
+      "THEORY"
+    ]
+  },
+  {
+    "id": "30-verificacao-de-fidelidade-a-fonte",
+    "system": "proprio",
+    "inputs": [
+      "EXCERPTS",
+      "GENERATED_DOCUMENT",
+      "SOURCE_ANALYSIS"
+    ]
+  },
+  {
+    "id": "31-verificacao-de-coerencia-pedagogica",
+    "system": "proprio",
+    "inputs": [
+      "BRIEFING",
+      "GENERATED_DOCUMENT",
+      "PEDAGOGICAL_PRINCIPLES",
+      "PLANNING"
+    ]
+  },
+  {
+    "id": "32-verificacao-bncc",
+    "system": "proprio",
+    "inputs": [
+      "BNCC_CANDIDATES",
+      "GENERATED_DOCUMENT",
+      "SELECTED_SKILLS"
+    ]
+  },
+  {
+    "id": "33-verificacao-de-pluralidade",
+    "system": "proprio",
+    "inputs": [
+      "EXCERPTS",
+      "GENERATED_DOCUMENT",
+      "STANCE_MAP"
+    ]
+  }
+]

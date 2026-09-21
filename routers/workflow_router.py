@@ -17,6 +17,7 @@ from db.memory_store import memory_store
 from db.queries import (
     add_workflow_message,
     create_workflow_session as insert_workflow_session,
+    delete_workflow_session,
     get_workflow_messages,
     get_workflow_session as fetch_workflow_session,
     get_workflow_session_for_owner,
@@ -25,7 +26,7 @@ from db.queries import (
     update_workflow_session_stage,
 )
 from graph.main import GRAPH_BUILDER
-from graph.tools.sandbox.workdir import _extrai_sandbox_dir, workspace_for_chat, workspace_id_for_chat
+from graph.tools.sandbox.workdir import _extrai_sandbox_dir, remover_work_dir, workspace_for_chat, workspace_id_for_chat
 from graph.tools.retrieval.audiencias import listar_audiencias
 from services.workflow_files import persist_workflow_files, restore_workflow_files
 
@@ -674,6 +675,22 @@ async def get_workflow_session(
 ):
     await _ensure_session_access(session_id, user)
     return await _ensure_session(session_id)
+
+
+@router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_workflow_session(
+    session_id: str,
+    user: CurrentUser | None = Depends(get_optional_current_user),
+):
+    await _ensure_session_access(session_id, user)
+    pool = get_pool()
+    owner_user_id = user.user_id if user else None
+    async with pool.acquire() as conn:
+        deleted = await delete_workflow_session(conn, session_id, owner_user_id)
+    if deleted is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sessão não encontrada")
+    memory_store._sessions.pop(session_id, None)
+    await remover_work_dir(deleted["workdir_id"])
 
 
 @router.get("/sessions/{session_id}/planning", response_model=list[dict])

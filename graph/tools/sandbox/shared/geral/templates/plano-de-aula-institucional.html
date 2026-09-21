@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Template - Plano de Aula (Padrão Formal Genérico)</title>
+    <style>
+        /* Fundo da tela na visualização web */
+        body {
+            background-color: #cbd5e0;
+            display: flex;
+            justify-content: center;
+            padding: 40px 20px;
+            font-family: Arial, Helvetica, sans-serif;
+            margin: 0;
+        }
+
+        /* Estrutura da Folha A4 em Retrato (Portrait) */
+        .a4-portrait-paper {
+            background-color: white;
+            width: 210mm;
+            min-height: 297mm;
+            padding: 20mm;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2);
+            color: black;
+            box-sizing: border-box;
+        }
+
+        /* Título Principal */
+        .plan-main-title {
+            text-align: center;
+            font-size: 14pt;
+            font-weight: bold;
+            margin-bottom: 30px;
+            text-transform: uppercase;
+        }
+
+        /* Tabela Principal */
+        .institutional-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 10.5pt;
+        }
+
+        .institutional-table th, 
+        .institutional-table td {
+            border: 1px solid black;
+            padding: 6px 10px;
+            vertical-align: middle;
+            text-align: left;
+            word-wrap: break-word;
+        }
+
+        /* Células de Cabeçalho Cinza */
+        .gray-header {
+            background-color: #d9d9d9 !important;
+            font-weight: bold;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        /* Definição de Largura das Colunas da Seção de Identificação */
+        .col-label {
+            width: 35%;
+            font-weight: normal;
+        }
+        .col-content {
+            width: 65%;
+        }
+
+        /* Células de Conteúdo Amplo */
+        .content-row {
+            min-height: 60px;
+            vertical-align: top !important;
+            padding: 10px !important;
+            line-height: 1.5;
+        }
+
+        /* Estilo dos Placeholders */
+        .placeholder {
+            color: #555;
+            font-style: italic;
+            font-size: 10pt;
+        }
+
+        /* Regras para Impressão ou Geração de PDF */
+        @media print {
+            @page {
+                size: A4 portrait;
+                margin: 15mm;
+            }
+            body {
+                background-color: white;
+                padding: 0;
+            }
+            .a4-portrait-paper {
+                box-shadow: none;
+                width: 100%;
+                min-height: auto;
+                padding: 0;
+                margin: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="a4-portrait-paper">
+        
+        <!-- Título -->
+        <div class="plan-main-title">PLANO DE AULA</div>
+
+        <!-- Tabela Estrutural -->
+        <table class="institutional-table">
+            <tbody>
+                
+                <!-- BLOCO 1: Identificação -->
+                <tr>
+                    <td colspan="2" class="gray-header">Identificação</td>
+                </tr>
+                <tr>
+                    <td class="col-label">Curso</td>
+                    <td class="col-content"><span class="placeholder">[Inserir o nome do Curso. Ex: Ensino Médio Integrado]</span></td>
+                </tr>
+                <tr>
+                    <td class="col-label">Componente Curricular</td>
+                    <td class="col-content"><span class="placeholder">[Inserir a Disciplina. Ex: Sociologia / História]</span></td>
+                </tr>
+                <tr>
+                    <td class="col-label">Módulo, Período, Semestre, Ano</td>
+                    <td class="col-content"><span class="placeholder">[Ex: 2º Semestre / 3º Ano]</span></td>
+                </tr>
+                <tr>
+                    <td class="col-label">Docente</td>
+                    <td class="col-content"><span class="placeholder">[Nome do Professor Responsável]</span></td>
+                </tr>
+                <tr>
+                    <td class="col-label">Duração</td>
+                    <td class="col-content"><span class="placeholder">[Ex: 2 horas-aula (100 minutos)]</span></td>
+                </tr>
+
+                <!-- BLOCO 2: Conteúdo -->
+                <tr>
+                    <td colspan="2" class="gray-header">Conteúdo (Recorte do tema)</td>
+                </tr>
+                <tr>
+                    <td colspan="2" class="content-row">
+                        <span class="placeholder">[Descrever o recorte temático específico da aula. Ex: Análise de discursos parlamentares sobre a regulamentação das redes sociais, focando em posicionamentos e vieses.]</span>
+                    </td>
+                </tr>
+
+                <!-- BLOCO 3: Objetivo Geral -->
+                <tr>
+                    <td colspan="2" class="gray-header">Objetivo Geral</td>
+                </tr>
+                <tr>
+                    <td colspan="2" class="content-row">
+                        <span class="placeholder">[Descrever a meta principal e ampla da aula. O que o aluno deve ser capaz de compreender globalmente ao fim da instrução.]</span>
+                    </td>
+                </tr>
+
+                <!-- BLOCO 4: Objetivos Específicos -->
+                <tr>
+                    <td colspan="2" class="gray-header">Objetivos específicos</td>
+                </tr>
+                <tr>
+                    <td colspan="2" class="content-row">
+                        <span class="placeholder">
+                            [Listar as habilidades menores a serem alcançadas. Ex:]<br>
+                            - [Identificar premissas em discursos políticos;]<br>
+                            - [Comparar diferentes posições sobre o mesmo tema;]<br>
+                            - [Debater as contradições encontradas nas transcrições.]
+                        </span>
+                    </td>
+                </tr>
+
+                <!-- BLOCO 5: Metodologia de Ensino -->
+                <tr>
+                    <td colspan="2" class="gray-header">Metodologia de ensino</td>
+                </tr>
+                <tr>
+                    <td colspan="2" class="content-row">
+                        <span class="placeholder">[Explicar o formato da aula. Ex: Aula invertida, leitura dirigida das fontes primárias extraídas do RAG, debate em grupos e síntese final no quadro.]</span>
+                    </td>
+                </tr>
+
+                <!-- BLOCO 6: Recursos Didáticos -->
+                <tr>
+                    <td colspan="2" class="gray-header">Recursos Didáticos</td>
+                </tr>
+                <tr>
+                    <td colspan="2" class="content-row">
+                        <span class="placeholder">[Listar os materiais físicos e digitais. Ex: Projetor multimídia, recortes de transcrições legislativas em PDF, smartphones para acesso aos murais interativos.]</span>
+                    </td>
+                </tr>
+
+                <!-- BLOCO 7: Avaliação -->
+                <tr>
+                    <td colspan="2" class="gray-header">Instrumentos e Formas de Avaliação da Aprendizagem da Aula</td>
+                </tr>
+                <tr>
+                    <td colspan="2" class="content-row">
+                        <span class="placeholder">[Definir como a aprendizagem será medida. Ex: Avaliação qualitativa da participação dos alunos no debate e entrega de um parágrafo crítico sobre os contrapontos estudados.]</span>
+                    </td>
+                </tr>
+
+                <!-- BLOCO 8: Bibliografia Básica -->
+                <tr>
+                    <td colspan="2" class="gray-header">Bibliografia Básica</td>
+                </tr>
+                <tr>
+                    <td colspan="2" class="content-row">
+                        <span class="placeholder">[Citações padrão ABNT do material central que fundamenta a aula.]</span>
+                    </td>
+                </tr>
+
+                <!-- BLOCO 9: Bibliografia Complementar -->
+                <tr>
+                    <td colspan="2" class="gray-header">Bibliografia Complementar</td>
+                </tr>
+                <tr>
+                    <td colspan="2" class="content-row">
+                        <span class="placeholder">[Citações de materiais adicionais de apoio e indicação de links para o corpus original utilizado.]</span>
+                    </td>
+                </tr>
+
+            </tbody>
+        </table>
+
+    </div>
+
+</body>
+</html>

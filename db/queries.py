@@ -276,6 +276,18 @@ async def get_workflow_session_for_owner(conn, session_id, owner_user_id):
     )
 
 
+async def delete_workflow_session(conn, session_id, owner_user_id=None):
+    return await conn.fetchrow(
+        """
+        DELETE FROM workflow_sessions
+        WHERE id=$1 AND ($2::uuid IS NULL OR owner_user_id=$2::uuid OR owner_user_id IS NULL)
+        RETURNING id, workdir_id
+        """,
+        session_id,
+        owner_user_id,
+    )
+
+
 async def add_workflow_message(conn, session_id, agent_name, role, content, hidden=False):
     return await conn.fetchrow(
         """
