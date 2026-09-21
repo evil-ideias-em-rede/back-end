@@ -1,0 +1,7 @@
+.env
+venv/
+workdirs/
+
+# Bancos locais e arquivos auxiliares do SQLite.
+# Os índices/dados devem ser gerados localmente, não enviados ao repositório.
+*.sqlite

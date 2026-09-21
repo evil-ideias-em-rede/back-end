@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Template - Sequência Didática (Tabela Única)</title>
+    <style>
+        /* Fundo da tela na visualização web */
+        body {
+            background-color: #cbd5e0;
+            display: flex;
+            justify-content: center;
+            padding: 40px 20px;
+            font-family: 'Times New Roman', Times, serif;
+            margin: 0;
+        }
+
+        /* Estrutura da Folha A4 em Retrato (Portrait) */
+        .a4-portrait-paper {
+            background-color: white;
+            width: 210mm;
+            min-height: 297mm; /* Proporção exata do A4 */
+            padding: 20mm;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2);
+            color: black;
+            box-sizing: border-box;
+        }
+
+        /* Estrutura da Tabela */
+        .lesson-plan-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11pt;
+            table-layout: fixed; /* Garante que a proporção das 6 colunas seja igual */
+        }
+
+        .lesson-plan-table th, 
+        .lesson-plan-table td {
+            border: 1px solid black;
+            padding: 6px 8px;
+            vertical-align: top;
+            text-align: left;
+            line-height: 1.4;
+            word-wrap: break-word;
+        }
+
+        /* Centralização específica de alguns cabeçalhos */
+        .text-center {
+            text-align: center !important;
+        }
+
+        /* Estilo dos Placeholders para o Agente LLM */
+        .placeholder {
+            color: #555;
+            font-style: italic;
+            font-size: 10.5pt;
+        }
+
+        .label {
+            font-weight: normal;
+            color: black;
+        }
+
+        /* Regras para Impressão ou Geração de PDF */
+        @media print {
+            @page {
+                size: A4 portrait;
+                margin: 15mm;
+            }
+            body {
+                background-color: white;
+                padding: 0;
+            }
+            .a4-portrait-paper {
+                box-shadow: none;
+                width: 100%;
+                min-height: auto;
+                padding: 0;
+                margin: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="a4-portrait-paper">
+        
+        <!-- Tabela Estrutural Principal -->
+        <table class="lesson-plan-table">
+            <tbody>
+                <!-- Título Superior -->
+                <tr class="row-title">
+                    <td colspan="6" class="text-center">Sequência Didática</td>
+                </tr>
+
+                <!-- Dados Gerais 1 (3 colunas iguais) -->
+                <tr class="row-header-1">
+                    <td colspan="2"><span class="label">Docente:</span> <span class="placeholder">[Nome do Professor]</span></td>
+                    <td colspan="2"><span class="label">Componente curricular:</span> <br> <span class="placeholder">[Disciplina]</span></td>
+                    <td colspan="2"><span class="label">Aluno:</span> <span class="placeholder">[Série / Ano]</span></td>
+                </tr>
+
+                <!-- Dados Gerais 2 -->
+                <tr class="row-header-2">
+                    <td colspan="2"><span class="placeholder">[Modalidade: Ex: Ensino Remoto / Presencial]</span></td>
+                    <td colspan="4"><span class="label">Tempo previsto:</span> <span class="placeholder">[Duração. Ex: 50"]</span></td>
+                </tr>
+
+                <!-- Bloco Temático e BNCC -->
+                <tr class="row-theme">
+                    <td colspan="6" class="text-center"><span class="label">Bloco Temático:</span> <span class="placeholder">[Nome do bloco, eixo ou grande tema]</span></td>
+                </tr>
+                <tr class="row-bncc">
+                    <td colspan="6">
+                        <span class="placeholder">[(Código da BNCC) - Descrição completa da habilidade que será trabalhada associada aos debates e fontes primárias.]</span>
+                    </td>
+                </tr>
+                <tr class="row-question">
+                    <td colspan="6" class="text-center">
+                        <span class="placeholder">[Pergunta norteadora ou tema provocativo central da aula]</span>
+                    </td>
+                </tr>
+
+                <!-- Seção de Objetivos -->
+                <tr class="row-objectives-title">
+                    <td colspan="6"><span class="label">Objetivos:</span></td>
+                </tr>
+                <tr class="row-objective-item">
+                    <td colspan="6"><span class="placeholder">1. [Descrever o primeiro objetivo de aprendizagem]</span></td>
+                </tr>
+                <tr class="row-objective-item">
+                    <td colspan="6"><span class="placeholder">2. [Descrever o segundo objetivo de aprendizagem]</span></td>
+                </tr>
+                <tr class="row-objective-item">
+                    <td colspan="6"><span class="placeholder">3. [Descrever o terceiro objetivo de aprendizagem]</span></td>
+                </tr>
+                <tr class="row-objective-item">
+                    <td colspan="6"><span class="placeholder">4. [Descrever o quarto objetivo de aprendizagem (opcional)]</span></td>
+                </tr>
+
+                <!-- Seção de Conteúdos -->
+                <tr class="row-contents-title">
+                    <td colspan="6"><span class="label">Conteúdos:</span></td>
+                </tr>
+                <tr class="row-content-item">
+                    <td colspan="6"><span class="placeholder">[Tópico principal de conteúdo]</span></td>
+                </tr>
+                <tr class="row-content-item">
+                    <td colspan="6"><span class="placeholder">[Tópico secundário ou conceitos a serem fixados]</span></td>
+                </tr>
+
+                <!-- Seção de Atividades -->
+                <tr class="row-activity-title">
+                    <td colspan="6"><span class="label">5. Atividade</span></td>
+                </tr>
+                <tr class="row-activity-description">
+                    <td colspan="6">
+                        <span class="placeholder">
+                            [Apresentar aqui a sequência pedagógica detalhada.]<br><br>
+                            - [Passo 1: Acolhida e introdução do material fonte...]<br>
+                            - [Passo 2: Exibição de vídeos ou leitura das transcrições recuperadas pelo RAG...]<br>
+                            - [Passo 3: Questionamentos e criação colaborativa de conceitos baseados nas falas dos parlamentares...]<br>
+                            - [Passo 4: Fechamento unindo os conhecimentos prévios com o material analisado.]
+                        </span>
+                    </td>
+                </tr>
+
+                <!-- Seção Inferior: Recursos Tecnológicos / Avaliação (Dividida ao meio) -->
+                <tr class="row-footer-tools">
+                    <!-- Metade Esquerda -->
+                    <td colspan="3">
+                        <span class="placeholder">
+                            [Descrever a ferramenta tecnológica de apoio (ex: Padlet, Canvas, Chat, WhatsApp) e como ela será utilizada para registrar a compreensão dos alunos.]<br><br>
+                            [Espaço para reflexões avaliativas do docente:]<br>
+                            - O aluno aprendeu?<br>
+                            - É preciso retomar o assunto?<br>
+                            - Quais foram os pontos de dúvida comuns?<br>
+                            - A comunicação do material foi clara?
+                        </span>
+                    </td>
+                    <!-- Metade Direita -->
+                    <td colspan="3" class="text-center">
+                        <br>
+                        <span class="placeholder">[Inserir instruções de acesso rápido, como indicação de QR Code ou Links para murais, repositórios ou formulários da aula.]</span>
+                        <br><br><br>
+                        <span class="placeholder">[https://link-gerado-pelo-sistema.com.br/aula-xyz]</span>
+                    </td>
+                </tr>
+
+            </tbody>
+        </table>
+
+    </div>
+
+</body>
+</html>

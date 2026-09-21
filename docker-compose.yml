@@ -1,0 +1,50 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    # O UID/GID precisam ter permissão de escrita no bind mount workdirs.
+    # Altere BACKEND_UID/BACKEND_GID ao usar outro usuário no host.
+    # O entrypoint começa como root somente para corrigir a posse do bind mount
+    # e reduz para BACKEND_UID/BACKEND_GID antes de executar o Uvicorn.
+    user: "0:0"
+    environment:
+      BACKEND_UID: "${BACKEND_UID:-1000}"
+      BACKEND_GID: "${BACKEND_GID:-1000}"
+    ports:
+      - "127.0.0.1:8006:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./workdirs:/app/workdirs
+      - ./graph/tools/retrieval/indice:/app/graph/tools/retrieval/indice
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=128m
+      - /run:rw,noexec,nosuid,nodev,size=16m
+    cap_drop:
+      - ALL
+    # Necessário apenas para o namespace interno do bubblewrap. A capacidade
+    # fica somente no bounding set; o processo continua sem privilégios
+    # efetivos e o bwrap descarta todas as capacidades no sandbox.
+    cap_add:
+      - SYS_ADMIN
+      - CHOWN
+      - SETUID
+      - SETGID
+    security_opt:
+      - no-new-privileges:true
+      - seccomp:unconfined
+      - apparmor:unconfined
+    pids_limit: 256
+    mem_limit: 1g
+    cpus: 2.0
+    init: true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s

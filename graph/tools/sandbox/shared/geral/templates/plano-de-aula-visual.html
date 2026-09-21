@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Template - Plano de Aula (Colorido e Lúdico)</title>
+    <style>
+        /* Fundo da tela na visualização web */
+        body {
+            background-color: #cbd5e0;
+            display: flex;
+            justify-content: center;
+            padding: 40px 20px;
+            font-family: Arial, Helvetica, sans-serif;
+            margin: 0;
+        }
+
+        /* Estrutura da Folha A4 em Retrato (Portrait) */
+        .a4-portrait-paper {
+            background-color: #e2f4eb; /* Fundo verde-água claro */
+            width: 210mm;
+            min-height: 297mm;
+            padding: 25mm 20mm;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2);
+            color: black;
+            box-sizing: border-box;
+            position: relative;
+            overflow: hidden; /* Mantém as formas geométricas dentro da folha */
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        /* Formas Geométricas Decorativas (Simulando o design original) */
+        .shape-red-top {
+            position: absolute;
+            top: 0;
+            right: 40mm;
+            width: 50mm;
+            height: 40mm;
+            background-color: #d13b40;
+            border-radius: 0 0 50mm 0;
+            z-index: 1;
+        }
+
+        .shape-pink-bottom {
+            position: absolute;
+            bottom: -10mm;
+            right: -10mm;
+            width: 70mm;
+            height: 70mm;
+            background-color: #f7a8b8;
+            border-radius: 35mm;
+            z-index: 1;
+        }
+
+        .shape-red-bottom-left {
+            position: absolute;
+            bottom: 20mm;
+            left: -5mm;
+            width: 40mm;
+            height: 15mm;
+            background-color: #d13b40;
+            border-radius: 0 15mm 15mm 0;
+            z-index: 1;
+        }
+
+        /* Marca d'água central */
+        .watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-30deg);
+            font-size: 80pt;
+            font-weight: bold;
+            color: rgba(0, 150, 64, 0.1);
+            z-index: 2;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        /* Container do Conteúdo (z-index maior para ficar acima das formas) */
+        .content-container {
+            position: relative;
+            z-index: 3;
+        }
+
+        /* Títulos */
+        .main-title {
+            color: #007a4d; /* Verde escuro */
+            font-size: 26pt;
+            font-weight: 900;
+            line-height: 1.1;
+            margin-bottom: 5px;
+            text-shadow: 1px 1px 2px rgba(255,255,255,0.8);
+        }
+
+        .sub-title {
+            color: #d13b40; /* Vermelho */
+            font-size: 16pt;
+            font-weight: bold;
+            margin-bottom: 25px;
+        }
+
+        /* Caixas de Informação */
+        .info-box {
+            border: 1.5px solid black;
+            background-color: rgba(255, 255, 255, 0.4); /* Fundo levemente transparente */
+            padding: 12px 15px;
+            margin-bottom: 15px;
+            font-size: 11pt;
+            line-height: 1.5;
+        }
+
+        .box-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        ul {
+            margin-top: 5px;
+            margin-bottom: 5px;
+            padding-left: 25px;
+        }
+
+        li {
+            margin-bottom: 5px;
+        }
+
+        /* Placeholders */
+        .placeholder {
+            font-style: italic;
+            color: #333;
+        }
+
+        /* Regras para Impressão */
+        @media print {
+            @page {
+                size: A4 portrait;
+                margin: 0;
+            }
+            body {
+                background-color: white;
+                padding: 0;
+            }
+            .a4-portrait-paper {
+                box-shadow: none;
+                width: 100%;
+                min-height: 100vh;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="a4-portrait-paper">
+        
+        <!-- Elementos Decorativos -->
+        <div class="shape-red-top"></div>
+        <div class="shape-pink-bottom"></div>
+        <div class="shape-red-bottom-left"></div>
+        <div class="watermark">ESCOLA / TEMA</div>
+
+        <div class="content-container">
+            
+            <!-- Cabeçalho -->
+            <div class="main-title">
+                <span class="placeholder">[Nome Principal do Evento ou Disciplina]</span>
+            </div>
+            <div class="sub-title">
+                Plano de Aula - <span class="placeholder">[Nível de Ensino / Turma]</span>
+            </div>
+
+            <!-- Caixa 1: Tema -->
+            <div class="info-box">
+                <span class="box-title">Tema:</span> 
+                <span class="placeholder">[Insira aqui o recorte temático central da aula]</span>
+            </div>
+
+            <!-- Caixa 2: Objetivos -->
+            <div class="info-box">
+                <div class="box-title">Objetivo:</div>
+                <div>Geral:</div>
+                <ul>
+                    <li><span class="placeholder">[Descreva o objetivo macro da aula]</span></li>
+                </ul>
+                <div>Específicos:</div>
+                <ul>
+                    <li><span class="placeholder">[Habilidade específica 1 a ser desenvolvida]</span></li>
+                    <li><span class="placeholder">[Habilidade específica 2 a ser desenvolvida]</span></li>
+                </ul>
+            </div>
+
+            <!-- Caixa 3: Metodologia -->
+            <div class="info-box" style="min-height: 180px;">
+                <div class="box-title">Metodologia (sugestão):</div>
+                <ul>
+                    <li><span class="placeholder">[<strong>Apresentação do tema:</strong> Descreva como será a introdução e o tempo estimado (ex: 10 min).]</span></li>
+                    <li><span class="placeholder">[<strong>Uso de material de apoio:</strong> Leitura de transcrições legislativas ou vídeos (ex: 15 min).]</span></li>
+                    <li><span class="placeholder">[<strong>Dinâmica Principal:</strong> Detalhe o debate em grupos, estudo de caso ou resolução de problemas (ex: 20 min).]</span></li>
+                    <li><span class="placeholder">[<strong>Fechamento:</strong> Atividade de síntese ou produção textual guiada pelo professor (ex: 15 min).]</span></li>
+                </ul>
+            </div>
+
+            <!-- Caixa 4: Recursos -->
+            <div class="info-box" style="width: 85%;">
+                <div class="box-title">Recursos necessários:</div>
+                <ul>
+                    <li><span class="placeholder">[Recurso tecnológico 1, ex: Projetor ou lousa digital]</span></li>
+                    <li><span class="placeholder">[Material físico, ex: Cartazes, folhas impressas com as transcrições]</span></li>
+                    <li><span class="placeholder">[Outros materiais de apoio]</span></li>
+                </ul>
+            </div>
+
+            <!-- Caixa 5: Avaliação -->
+            <div class="info-box" style="width: 85%;">
+                <div class="box-title">Avaliação:</div>
+                <ul>
+                    <li><span class="placeholder">[A critério do(a) professor(a). Ex: Avaliação contínua através da observação da participação no debate.]</span></li>
+                </ul>
+            </div>
+
+        </div>
+    </div>
+
+</body>
+</html>

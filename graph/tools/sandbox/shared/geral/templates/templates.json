@@ -1,0 +1,93 @@
+{
+  "contrato_preenchimento": "Cada campo preenchível é <span class=\"placeholder\">[texto guia]</span>. Substituir o texto interno e remover o atributo class, deixando <span>. Não alterar CSS, classes de layout nem estrutura.",
+  "templates": [
+    {
+      "arquivo": "plano-de-aula-matricial.html",
+      "nome": "Matricial",
+      "quando_usar": "Objetivos, conteúdos conceituais, procedimentais e atitudinais, metodologia, recursos e avaliação em colunas. A4 paisagem.",
+      "campos": [
+        "objetivos",
+        "conteudos_conceituais",
+        "conteudos_procedimentais",
+        "conteudos_atitudinais",
+        "metodologia",
+        "recursos",
+        "avaliacao",
+        "referencias"
+      ]
+    },
+    {
+      "arquivo": "plano-de-aula-blocos.html",
+      "nome": "Blocos simples",
+      "quando_usar": "O mais enxuto. Foco e objetivos, materiais, objetivos de aprendizagem, estrutura da atividade e avaliação.",
+      "campos": [
+        "serie",
+        "disciplina",
+        "data",
+        "topico",
+        "aula_n",
+        "foco_objetivos",
+        "materiais",
+        "objetivos_aprendizagem",
+        "estrutura_atividade",
+        "avaliacao"
+      ]
+    },
+    {
+      "arquivo": "plano-de-aula-sequencia-didatica.html",
+      "nome": "Sequência didática",
+      "quando_usar": "Único com campo próprio para o código da habilidade da BNCC e pergunta norteadora. Traz autoavaliação docente.",
+      "campos": [
+        "docente",
+        "componente",
+        "ano",
+        "modalidade",
+        "tempo",
+        "bloco_tematico",
+        "habilidade_bncc",
+        "pergunta_norteadora",
+        "objetivos",
+        "conteudos",
+        "atividade",
+        "recurso_digital",
+        "autoavaliacao",
+        "links"
+      ]
+    },
+    {
+      "arquivo": "plano-de-aula-institucional.html",
+      "nome": "Institucional formal",
+      "quando_usar": "Único com bibliografia básica e complementar. Objetivo geral separado dos específicos.",
+      "campos": [
+        "curso",
+        "componente",
+        "periodo",
+        "docente",
+        "duracao",
+        "conteudo",
+        "objetivo_geral",
+        "objetivos_especificos",
+        "metodologia",
+        "recursos",
+        "avaliacao",
+        "bibliografia_basica",
+        "bibliografia_complementar"
+      ]
+    },
+    {
+      "arquivo": "plano-de-aula-visual.html",
+      "nome": "Visual",
+      "quando_usar": "Colorido, com metodologia distribuída em tempos. Bom para material que circula com a turma.",
+      "campos": [
+        "escola_tema",
+        "nivel",
+        "tema",
+        "objetivo_geral",
+        "objetivos_especificos",
+        "metodologia_tempos",
+        "recursos",
+        "avaliacao"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+from ..loader import render
+from .rules import (
+    ACERVO_PEDAGOGICO,
+    LEITURA_DO_PLANEJAMENTO,
+    PONTE_ARTEFATO,
+    _NEUTRALITY_BLOCK,
+    _SANDBOX_FLOW_PLANNING,
+)
+
+
+WRITING_WORKSHOP_PROMPT = f"""
+{render("22-oficina-de-redacao")}
+
+{ACERVO_PEDAGOGICO}
+
+{_NEUTRALITY_BLOCK}
+
+{LEITURA_DO_PLANEJAMENTO}
+
+{PONTE_ARTEFATO}
+
+{_SANDBOX_FLOW_PLANNING}
+""".strip()

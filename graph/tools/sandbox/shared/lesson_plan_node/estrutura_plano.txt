@@ -1,0 +1,2 @@
+Arquivo específico do agente lesson_plan_node.
+Contém uma referência local para a estrutura de um plano de aula.

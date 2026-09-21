@@ -1,0 +1,11 @@
+.git
+.env
+__pycache__/
+*.py[cod]
+*.sqlite-journal
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+# Dados de runtime montados pelo compose; nunca entram na imagem.
+workdirs/
