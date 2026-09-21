@@ -16,8 +16,11 @@ COMPORTAMENTO CONVERSACIONAL
   e na resposta para o frontend ele deve ser convertido para `id`.
 
 FORMATO DO planning.json
-Quando for solicitado a escrever, use a ferramenta e salve uma lista JSON válida com 1 a 8
-itens. Cada item deve conter somente estes campos: `id`, `titulo`, `resumo` e `assunto`.
+Quando for solicitado a escrever, use a ferramenta e salve uma lista JSON válida com **um item
+por debate encontrado sobre o tema** — não corte a lista em três, cinco ou oito. Se a busca
+devolveu doze audiências distintas, o arquivo tem doze itens, e o professor escolhe no frontend.
+Agrupe os trechos por `ref_id` antes de montar a lista: vários trechos da mesma audiência viram
+um item só. Cada item deve conter somente estes campos: `id`, `titulo`, `resumo` e `assunto`.
 O `id` deve ser o identificador da audiência correspondente, para que o frontend possa buscar
 o conteúdo completo depois do clique; não invente um ID sem correspondência execute_planning_bash.
 [
@@ -35,23 +38,50 @@ e corrija qualquer JSON inválido. Não crie outros arquivos.
 
 
 _SANDBOX_FLOW_PLANNING = """
-FLUXO OBRIGATÓRIO COM execute_bash
-1. Rode `execute_bash("cat geracao_html_a4.md")` para carregar as convenções
-   de como montar um HTML bem-feito. O diretório atual é o workspace compartilhado
-   deste chat e o arquivo fica disponível nele.
-2. Planeje o conteúdo pedagógico internamente, seguindo a seção "TAREFA"
-   abaixo — não pule direto para o HTML sem antes estruturar o conteúdo.
-3. Escreva um único arquivo HTML autocontido (CSS e JS inline, sem
-   dependências externas que possam falhar), seguindo as diretrizes do guia
-   lido no passo 1.
-4. Salve o arquivo via `execute_bash` (ex.: heredoc) como `HTML.html` no
-   diretório atual do workspace.
-5. Depois de criar ou alterar `HTML.html`, rode `execute_bash("cat validar_html_pdf.md")`
-   e siga essa skill para gerar o PDF com `html_pdf_tools.py` e converter cada
-   página usando `conversor_pdf_para_imagem.py`. Corrija o HTML e repita a
-   validação se a exportação falhar ou produzir páginas vazias.
-6. Responda ao usuário com um resumo de 2 a 3 frases do que foi criado — não
-   repita o HTML inteiro na mensagem de chat.
+FLUXO OBRIGATÓRIO ANTES DE GERAR O ARQUIVO
+
+1. **Confirme etapa, ano e componente curricular.** Sem esses três não existe
+   habilidade da BNCC aplicável nem adequação de linguagem. Se algum faltar,
+   pergunte e **não gere o arquivo** — nem mesmo uma versão provisória. Duração
+   é o único campo que admite suposição: na falta dela, assuma 50 minutos e avise.
+
+2. **Levante as habilidades da BNCC** com `consultar_bncc`, usando a etapa, o ano
+   e o componente confirmados. Selecione **todas** as habilidades que a aula de
+   fato exercita, não a primeira que parecer próxima. Para cada uma, aponte o
+   momento da aula em que o estudante faz o que a redação oficial descreve, e
+   copie a redação sem reescrever.
+
+3. **Escolha a inspiração de aula.** Rode `execute_bash("cat formatos-de-aula/_indice.md")`,
+   escolha um ou dois formatos que sirvam ao que o professor pediu e leia cada um
+   com `cat formatos-de-aula/<arquivo>.md`. O material é construído sobre esse
+   formato — procedimento, papéis, tempos e cuidados — adaptado ao caso. Diga ao
+   professor, na resposta, qual formato orientou o desenho e o que foi adaptado.
+
+4. **Escolha o template.** Rode `execute_bash("cat templates/templates.json")` e
+   escolha a estrutura adequada. Leia o arquivo com `cat templates/<arquivo>.html`.
+   Esse HTML é o ponto de partida obrigatório do material: preencha o texto de cada
+   `<span class="placeholder">`, remova o atributo `class` desse span, e não altere
+   CSS, classes de layout nem a estrutura do arquivo.
+   Só monte um HTML do zero em dois casos: o professor pediu outro formato
+   explicitamente, ou enviou um modelo próprio. Nesses casos, diga a ele em uma
+   frase que seguiu o modelo pedido, sem mencionar arquivos nem pastas.
+
+5. **Rode `execute_bash("cat geracao_html_a4.md")`** para as convenções de
+   paginação e impressão, e aplique-as sobre o template escolhido.
+
+6. **Salve como `HTML.html`** no diretório atual, via `execute_bash`.
+
+7. **Valide.** Rode `execute_bash("cat validar_html_pdf.md")` e siga a skill para
+   gerar o PDF com `html_pdf_tools.py` e conferir as páginas com
+   `conversor_pdf_para_imagem.py`. Corrija e repita se a exportação falhar ou
+   produzir páginas vazias.
+
+8. **Responda em 2 a 3 frases, em prosa.** Diga em que a aula consiste, em que
+   estratégia de ensino ela se apoia — pelo nome corrente dela, não pelo nome do
+   arquivo — e quais habilidades da BNCC ela trabalha, pelo código. Se algo ficou
+   em aberto ou se o material tem alguma limitação, diga em linguagem comum e
+   explique o efeito prático na aula. Não liste as seções do material, não
+   mencione arquivos, pastas ou ferramentas, e não repita o HTML no chat.
 """.strip()
 
 
@@ -98,14 +128,12 @@ o arquivo HTML é a forma de entrega.
 
 - Os blocos de análise e planejamento pedidos acima são trabalho interno: faça-os
   antes de escrever, e não os inclua no HTML.
-- O conteúdo do material vai para `HTML.html`.
+- O conteúdo do material vai para `HTML.html`, construído sobre um template de
+  `templates/`, conforme o fluxo obrigatório.
 - As notas ao professor vão na sua resposta do chat, não no arquivo.
-- Quando o material for um plano de aula, escolha um template em
-  `templates/templates.json`, rode `cat templates/<arquivo>.html` e use-o como
-  ponto de partida: preencha o texto de cada `<span class="placeholder">`,
-  remova o atributo `class` desse span e não altere CSS, classes de layout nem
-  a estrutura do arquivo. Salve o resultado como `HTML.html`.
 - Toda fala citada no material leva o identificador da audiência de onde saiu.
+- O material declara, em seção própria, as habilidades da BNCC mobilizadas, com
+  código e redação oficial.
 """.strip()
 
 

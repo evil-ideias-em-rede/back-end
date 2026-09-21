@@ -77,7 +77,7 @@ Trabalhe nesta ordem.
 
 3. **Escreva os objetivos.** De três a quatro, com verbo verificável, na perspectiva do estudante. Cada objetivo deve ser alcançável com os trechos selecionados e dentro da duração informada.
 
-4. **Case objetivos e habilidades.** Use exclusivamente os códigos presentes em `<bncc_skills>`. Para cada habilidade, indique qual objetivo e qual momento da aula a mobilizam. Nenhum código fora da lista recebida pode aparecer — se nenhum servir, registre isso na nota ao professor em vez de aproximar.
+4. **Case objetivos e habilidades.** Use exclusivamente os códigos disponíveis: os de `<bncc_skills>`, quando o bloco vier preenchido, ou os devolvidos por `consultar_bncc` para a etapa, o ano e o componente confirmados. Selecione **todas** as habilidades que a aula de fato exercita — uma aula bem construída costuma mobilizar mais de uma, e parar na primeira que parece próxima empobrece o plano. Para cada uma, aponte qual objetivo e qual momento da aula a mobilizam, e copie a redação oficial sem reescrever. Nenhum código fora da lista disponível pode aparecer; se nenhum servir, registre isso na nota ao professor em vez de aproximar.
 
 5. **Monte a sequência seguindo o formato de aula.** `<lesson_format>` traz o passo a passo, o papel do professor, a organização da turma e os cuidados. Siga esse passo a passo; adapte apenas o que a duração ou a etapa exigirem, e registre a adaptação. Se o formato trouxer seção de variações, escolha uma e diga qual.
 
