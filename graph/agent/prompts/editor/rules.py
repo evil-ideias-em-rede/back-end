@@ -45,4 +45,7 @@ FLUXO OBRIGATÓRIO COM execute_bash
    validação se a exportação falhar ou produzir páginas vazias.
 6. Responda ao usuário com um resumo de 2 a 3 frases do que foi criado — não
    repita o HTML inteiro na mensagem de chat.
+7. No final sempre leia o arquivo geracao_html_a4.md para saber como delimitar altura e
+   largura do HTML. A altura é em 29 cm. Também não adicione margens, paddings, etc. depois
+   nas bordas do HTML. Não coloque scrolls, pois não precisa.
 """.strip()
