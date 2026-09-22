@@ -6,6 +6,7 @@ from graph.tools.sandbox.workdir import workspace_for_chat
 from graph.tools.retrieval.audiencias import consultar_audiencia_por_id
 from graph.tools.retrieval.tool_buscar_audiencias import buscar_audiencias
 from graph.tools.retrieval.tool_consultar_audiencias_sql import consultar_audiencias_sql
+from graph.tools.retrieval.tool_consultar_bncc import consultar_bncc
 from graph.agent.prompts.editor.rules import EDIT_RULES
 from langchain_core.tools import tool
 
@@ -103,6 +104,7 @@ async def run_agent(
             consultar_audiencia_por_id,
             buscar_audiencias,
             consultar_audiencias_sql,
+            consultar_bncc,
             web_search
         ]
     tool_names = ", ".join(getattr(agent_tool, "name", "ferramenta") for agent_tool in agent_tools)

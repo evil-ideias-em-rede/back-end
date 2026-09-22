@@ -3,6 +3,7 @@ from langgraph.graph import MessagesState
 from langgraph.prebuilt.tool_node import ToolNode
 from langgraph.graph import END, START, StateGraph
 
+from .agent.base import web_search
 from .agent.brain_stom_node import brainstorm_node, execute_planning_bash
 from .agent.debate_outline_node import debate_outline_node
 from .agent.generic_activity_node import generic_activity_node
@@ -14,6 +15,7 @@ from .tools.sandbox.execute_bash import execute_bash
 from .tools.retrieval.audiencias import consultar_audiencia_por_id
 from .tools.retrieval.tool_buscar_audiencias import buscar_audiencias
 from .tools.retrieval.tool_consultar_audiencias_sql import consultar_audiencias_sql
+from .tools.retrieval.tool_consultar_bncc import consultar_bncc
 
 
 AGENTS = [
@@ -69,9 +71,11 @@ graph.add_node(
         consultar_audiencia_por_id,
         buscar_audiencias,
         consultar_audiencias_sql,
+        consultar_bncc,
+        web_search,
     ]),
 )
-graph.add_node("editor_tools", ToolNode([execute_bash]))
+graph.add_node("editor_tools", ToolNode([execute_bash, web_search]))
 graph.add_edge(START, "router")
 
 

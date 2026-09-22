@@ -8,7 +8,7 @@ mensagem do professor
   → 11 briefing                      → BRIEFING
   → 12 consultas                     → queries
   → [RAG]                            → RETRIEVED_FALAS
-  → 13 triagem                       → EXCERPTS, STANCE_MAP, COVERAGE_REPORT    ← professor verifica
+  → 13 triagem                       → EXCERPTS, STANCE_MAP, COVERAGE_REPORT   ← professor verifica
   → 18 brainstorm                    → PLANNING_NOTES                           ← conversa com o professor
   → 14 formato       ─┐                                                         ← professor escolhe
   → 15 BNCC          ─┼─ em paralelo                                            ← professor confirma

@@ -8,7 +8,7 @@ from .embeddings_index import buscar_vetorial, conectar
 
 
 @tool("buscar_audiencias")
-def buscar_audiencias(pergunta: str, k: int = 5) -> str:
+def buscar_audiencias(pergunta: str, k: int = 30) -> str:
     """Busca trechos relevantes das transcrições de audiências públicas.
 
     Use esta ferramenta sempre que precisar de informação factual sobre o
@@ -17,7 +17,11 @@ def buscar_audiencias(pergunta: str, k: int = 5) -> str:
 
     Args:
         pergunta: Pergunta ou tema em linguagem natural.
-        k: Quantidade máxima de trechos retornados; padrão 5.
+        k: Quantidade máxima de trechos retornados; padrão 30, máximo 60.
+            Vários trechos podem vir da mesma audiência: agrupe por ``ref_id``
+            para saber quantos debates distintos foram encontrados. Ao
+            apresentar debates ao professor, apresente **todos** os que tratam
+            do tema, e não apenas os primeiros do ranking.
 
     Returns:
         JSON serializado com ``doc_id``, ``source``, ``ref_id``, ``distance``
@@ -31,7 +35,7 @@ def buscar_audiencias(pergunta: str, k: int = 5) -> str:
     if not pergunta:
         return json.dumps({"erro": "A pergunta não pode ser vazia."}, ensure_ascii=False)
 
-    k = max(1, min(int(k), 20))
+    k = max(1, min(int(k), 60))
     # LangGraph executa tools síncronas em threads do executor. Abrir a
     # conexão nesta chamada evita reutilizar uma conexão SQLite criada em
     # outra thread e também isola chamadas concorrentes do agente.

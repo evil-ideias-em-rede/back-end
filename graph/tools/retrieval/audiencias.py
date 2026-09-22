@@ -199,7 +199,37 @@ def consultar_audiencia(audiencia_id: int | str, caminho_indice: Path = INDICE_P
 
 @tool("consultar_audiencia_por_id")
 def consultar_audiencia_por_id(audiencia_id: int) -> str:
-    """Retorna uma audiência real pelo ID numérico no formato do frontend."""
+    """Retorna o debate inteiro pelo ID da audiência, já segmentado e anotado.
+
+    Use depois de localizar a audiência com ``buscar_audiencias``. O retorno traz
+    o debate completo, organizado por participante e, dentro de cada um, pelas
+    suas ``falas`` — uma fala é tudo o que a pessoa disse até passar a palavra.
+
+    Cada fala pode trazer:
+
+    - ``taxonomia``: quatro dimensões, **cada uma com um ou mais valores**.
+      ``Alinhamento Temático`` (Focalizado, Periférico, Desalinhado);
+      ``Postura do Orador`` (Agressiva, Emocional, Confiante, Técnica);
+      ``Credibilidade e Validação`` (Autoridade Própria, Referência Externa,
+      Recursos Retóricos); ``Posicionamento`` (Favorável, Contrário, Neutro,
+      Ambíguo).
+    - ``resumo``: síntese do que foi dito. A parte final repete a classificação
+      e o objeto do posicionamento, e não deve ser reaproveitada.
+    - ``objeto_do_posicionamento``: sobre o quê a pessoa se posicionou. Duas
+      falas ``Favorável`` sobre objetos diferentes não concordam entre si:
+      compare o objeto antes de apresentar participantes como concordantes.
+    - ``propostas``: o que a pessoa propôs concretamente, quando propôs.
+    - ``pendencias_revisao``: ressalvas já registradas sobre aquela fala.
+    - ``interrupcoes``: registro de quem cortou a fala; não é usado no material.
+
+    Copie esses campos como estão. Não reclassifique uma fala nem reescreva o
+    objeto do posicionamento ou uma proposta.
+
+    Quando uma audiência ainda não tiver sido anotada, os campos de taxonomia
+    virão ausentes ou nulos. Nesse caso, trabalhe apenas com o texto das falas e
+    diga ao professor que aquele debate ainda não tem a classificação — não
+    deduza posicionamento nem preencha o que falta.
+    """
     resultado = consultar_audiencia(audiencia_id)
     if resultado is None:
         return json.dumps(

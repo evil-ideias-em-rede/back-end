@@ -16,25 +16,21 @@ def _format_warning(work_dir: str) -> str:
 @tool
 async def execute_bash(comando: str, config: RunnableConfig) -> str:
     """
-    Executa um comando shell restrito ao diretório de trabalho do projeto
-    e retorna o resultado estruturado. Você pode usar para criar codigo python para 
-    manipular CSVs através de comando bash ou usar comandos bash em geral.
+    Executa um comando shell restrito ao diretório de trabalho do chat e
+    retorna o resultado estruturado. Use para ler e escrever arquivos, rodar
+    scripts Python e manipular dados.
 
-    Para gerar PDFs, escreva um script Python usando a biblioteca
-    reportlab e execute-o com esta mesma ferramenta (não existe uma
-    ferramenta separada para PDF). O módulo `pdf_helpers.py` já está
-    disponível para import (cuida de tipografia, tabelas, cores e rodapé
-    numerado) — consulte a skill "geracao_pdf.md" para o fluxo recomendado
-    e exemplos antes de escrever o script do zero. Aém disso, você também pode usar
-    a biblioteca matplotlib para gerar gráficos e salvar como imagens, que podem
-    ser incluídas no PDF.
-    Também é possível gerar slides com a biblioteca "pptxgenjs" como descrito na skill "geracao_slide.md".
-    Para validar um HTML antes de concluir um material, use a skill
-    "validar_html_pdf.md": ela fornece "html_pdf_tools.py", que usa o mesmo
-    Chromium do endpoint de exportação, e "conversor_pdf_para_imagem.py".
+    O diretório contém o acervo pedagógico do sistema: `contratos.md`,
+    `formatos-de-aula/`, `teorias/` e `templates/`. Consulte-os antes de montar
+    material.
+
+    Para validar um HTML antes de concluir, siga a skill "validar_html_pdf.md":
+    ela usa `html_pdf_tools.py`, que roda o mesmo Chromium do endpoint de
+    exportação, e `conversor_pdf_para_imagem.py` para conferir as páginas.
 
     Args:
-        comando (str): Comando a ser executado no shell (ex: "ls -la", echo "print('Python rodando!)" > teste.py, python3 teste.py).
+        comando (str): Comando a ser executado no shell (ex.: "ls -la",
+            "cat contratos.md", "python3 script.py").
 
     Returns:
         str: JSON com:
