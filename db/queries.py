@@ -483,7 +483,8 @@ async def delete_turma(conn, user_id, turma_id):
 async def list_templates(conn, user_id):
     return await conn.fetch(
         """
-        SELECT t.id, t.title, t.description, t.html_content,
+        SELECT t.id, t.title, t.html_content,
+               t.file_name, t.file_content,
                t.created_at, t.updated_at,
                COALESCE(array_agg(tt.turma_id) FILTER (WHERE tt.turma_id IS NOT NULL), ARRAY[]::uuid[]) AS turma_ids,
                COUNT(tt.turma_id)::int AS qtd
@@ -500,7 +501,8 @@ async def list_templates(conn, user_id):
 async def get_template(conn, user_id, template_id):
     return await conn.fetchrow(
         """
-        SELECT t.id, t.title, t.description, t.html_content,
+        SELECT t.id, t.title, t.html_content,
+               t.file_name, t.file_content,
                t.created_at, t.updated_at,
                COALESCE(array_agg(tt.turma_id) FILTER (WHERE tt.turma_id IS NOT NULL), ARRAY[]::uuid[]) AS turma_ids,
                COUNT(tt.turma_id)::int AS qtd
@@ -514,32 +516,46 @@ async def get_template(conn, user_id, template_id):
     )
 
 
-async def create_template(conn, user_id, title, description, html_content):
+async def template_name_exists(conn, user_id, file_name):
+    return await conn.fetchval(
+        """
+        SELECT EXISTS(
+            SELECT 1
+            FROM templates
+            WHERE user_id=$1 AND (file_name=$2 OR title=$2)
+        )
+        """,
+        user_id,
+        file_name,
+    )
+
+
+async def create_template(conn, user_id, title, html_content, file_name=None, file_content=None):
     return await conn.fetchrow(
         """
-        INSERT INTO templates (user_id, title, description, html_content)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO templates (user_id, title, html_content, file_name, file_content)
+        VALUES ($1, $2, $3, $4, $5)
         RETURNING id
         """,
         user_id,
         title,
-        description,
         html_content,
+        file_name,
+        file_content,
     )
 
 
-async def update_template(conn, user_id, template_id, title, description, html_content):
+async def update_template(conn, user_id, template_id, title, html_content):
     return await conn.fetchrow(
         """
         UPDATE templates
-        SET title=$3, description=$4, html_content=$5, updated_at=NOW()
+        SET title=$3, html_content=$4, updated_at=NOW()
         WHERE id=$2 AND user_id=$1
         RETURNING id
         """,
         user_id,
         template_id,
         title,
-        description,
         html_content,
     )
 
@@ -566,6 +582,7 @@ async def list_materiais(conn, user_id):
         """
         SELECT m.id, m.title, m.autoral, m.orientation, m.type, m.category,
                m.file_type, m.html_content, m.file_url,
+               m.file_name, m.file_content,
                m.created_at, m.updated_at,
                COALESCE(array_agg(mt.turma_id) FILTER (WHERE mt.turma_id IS NOT NULL), ARRAY[]::uuid[]) AS turma_ids,
                COUNT(mt.turma_id)::int AS qtd
@@ -584,6 +601,7 @@ async def get_material(conn, user_id, material_id):
         """
         SELECT m.id, m.title, m.autoral, m.orientation, m.type, m.category,
                m.file_type, m.html_content, m.file_url,
+               m.file_name, m.file_content,
                m.created_at, m.updated_at,
                COALESCE(array_agg(mt.turma_id) FILTER (WHERE mt.turma_id IS NOT NULL), ARRAY[]::uuid[]) AS turma_ids,
                COUNT(mt.turma_id)::int AS qtd
@@ -597,12 +615,12 @@ async def get_material(conn, user_id, material_id):
     )
 
 
-async def create_material(conn, user_id, title, autoral, orientation, material_type, category, file_type, html_content, file_url):
+async def create_material(conn, user_id, title, autoral, orientation, material_type, category, file_type, html_content, file_url, file_name=None, file_content=None):
     return await conn.fetchrow(
         """
         INSERT INTO materiais
-            (user_id, title, autoral, orientation, type, category, file_type, html_content, file_url)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            (user_id, title, autoral, orientation, type, category, file_type, html_content, file_url, file_name, file_content)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         RETURNING id
         """,
         user_id,
@@ -614,6 +632,8 @@ async def create_material(conn, user_id, title, autoral, orientation, material_t
         file_type,
         html_content,
         file_url,
+        file_name,
+        file_content,
     )
 
 

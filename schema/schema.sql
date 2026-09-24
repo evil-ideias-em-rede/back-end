@@ -83,7 +83,6 @@ CREATE TABLE IF NOT EXISTS templates (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     title TEXT NOT NULL,
-    description TEXT,
     html_content TEXT NOT NULL DEFAULT '',
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -99,9 +98,11 @@ CREATE TABLE IF NOT EXISTS materiais (
     orientation TEXT NOT NULL DEFAULT 'V' CHECK (orientation IN ('V', 'H')),
     type TEXT NOT NULL DEFAULT 'source' CHECK (type IN ('source', 'slide', 'atv')),
     category TEXT NOT NULL DEFAULT 'material' CHECK (category IN ('plano', 'material', 'atividade')),
-    file_type TEXT NOT NULL DEFAULT 'html' CHECK (file_type IN ('pdf', 'html')),
+    file_type TEXT NOT NULL DEFAULT 'html' CHECK (file_type IN ('pdf', 'html', 'docx')),
     html_content TEXT NOT NULL DEFAULT '',
     file_url TEXT,
+    file_name TEXT,
+    file_content BYTEA,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
@@ -122,6 +123,18 @@ CREATE TABLE IF NOT EXISTS material_turmas (
 
 CREATE INDEX IF NOT EXISTS idx_template_turmas_turma_id ON template_turmas(turma_id);
 CREATE INDEX IF NOT EXISTS idx_material_turmas_turma_id ON material_turmas(turma_id);
+
+ALTER TABLE templates ADD COLUMN IF NOT EXISTS file_name TEXT;
+ALTER TABLE templates ADD COLUMN IF NOT EXISTS file_content BYTEA;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_templates_user_file_name
+    ON templates(user_id, file_name)
+    WHERE file_name IS NOT NULL;
+ALTER TABLE materiais ADD COLUMN IF NOT EXISTS file_name TEXT;
+ALTER TABLE materiais ADD COLUMN IF NOT EXISTS file_content BYTEA;
+
+ALTER TABLE materiais DROP CONSTRAINT IF EXISTS materiais_file_type_check;
+ALTER TABLE materiais ADD CONSTRAINT materiais_file_type_check CHECK (file_type IN ('pdf', 'html', 'docx'));
 
 -- Fluxo público do ateliê de agentes. Mantém o mock separado de users,
 -- porque users.id é UUID e o protótipo usa deliberadamente o usuário 10.

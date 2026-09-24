@@ -105,17 +105,18 @@ class TurmaUpdateIn(TurmaCreateIn):
 
 class TemplateCreateIn(BaseModel):
     title: str = Field(min_length=1, max_length=300)
-    description: Optional[str] = Field(default=None, max_length=5000)
     html_content: str = Field(default="", max_length=2_000_000, validation_alias=AliasChoices("htmlContent", "html_content"))
     turma_ids: list[UUID] = Field(default_factory=list, validation_alias=AliasChoices("turmaIds", "turma_ids"))
+    file_name: Optional[str] = Field(default=None, max_length=500, validation_alias=AliasChoices("fileName", "file_name"))
+    file_content: Optional[str] = Field(default=None, max_length=30_000_000, validation_alias=AliasChoices("fileContent", "file_content"))
 
 
 class TemplateOut(BaseModel):
     id: str
     title: str
     qtd: int
-    description: Optional[str] = None
     htmlContent: str
+    fileName: Optional[str] = None
     turmaIds: list[str]
     lastModifiedAt: int
 
@@ -130,9 +131,11 @@ class MaterialCreateIn(BaseModel):
     orientation: Literal["V", "H"] = "V"
     type: Literal["source", "slide", "atv"] = "source"
     category: Literal["plano", "material", "atividade"] = "material"
-    file_type: Literal["pdf", "html"] = Field(default="html", validation_alias=AliasChoices("fileType", "file_type"))
+    file_type: Literal["pdf", "html", "docx"] = Field(default="html", validation_alias=AliasChoices("fileType", "file_type"))
     html_content: str = Field(default="", max_length=2_000_000, validation_alias=AliasChoices("htmlContent", "html_content"))
     file_url: Optional[str] = Field(default=None, max_length=2000, validation_alias=AliasChoices("fileUrl", "file_url"))
+    file_name: Optional[str] = Field(default=None, max_length=500, validation_alias=AliasChoices("fileName", "file_name"))
+    file_content: Optional[str] = Field(default=None, max_length=30_000_000, validation_alias=AliasChoices("fileContent", "file_content"))
     turma_ids: list[UUID] = Field(default_factory=list, validation_alias=AliasChoices("turmaIds", "turma_ids"))
 
 
@@ -143,10 +146,11 @@ class MaterialOut(BaseModel):
     orientation: Literal["V", "H"]
     type: Literal["source", "slide", "atv"]
     category: Literal["plano", "material", "atividade"]
-    fileType: Literal["pdf", "html"]
+    fileType: Literal["pdf", "html", "docx"]
     qtd: int
     htmlContent: str
     fileUrl: Optional[str] = None
+    fileName: Optional[str] = None
     turmaIds: list[str]
     lastModified: str
     lastModifiedAt: int

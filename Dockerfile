@@ -6,7 +6,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # bubblewrap fornece a segunda camada de isolamento usada por execute_bash.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends bash bubblewrap ca-certificates chromium \
+    && apt-get install -y --no-install-recommends bash bubblewrap ca-certificates chromium poppler-utils \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --uid 10001 --shell /usr/sbin/nologin appuser
 
