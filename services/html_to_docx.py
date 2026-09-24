@@ -189,18 +189,133 @@ def _add_runs(paragraph, node: Tag, font: dict, scale: float, bold=False, italic
             )
 
 
+
+def _css_properties(html_text: str) -> dict[str, dict[str, str]]:
+    result = {}
+    for name, body in re.findall(r"\.([A-Za-z][\w-]*)\s*\{([^}]*)\}", html_text):
+        result[name] = {
+            key.strip().lower(): value.strip()
+            for key, _, value in (part.partition(":") for part in body.split(";"))
+            if key.strip()
+        }
+    return result
+
+
+def _matrix_position(style: str) -> tuple[float, float]:
+    match = re.search(r"matrix\([^,]+,[^,]+,[^,]+,[^,]+,\s*" + NUMBER + r",\s*" + NUMBER + r"\)", style)
+    return (float(match.group(1)), float(match.group(2))) if match else (0.0, 0.0)
+
+
+def _style_number(style: str, property_name: str, default: float = 0.0) -> float:
+    match = re.search(rf"{re.escape(property_name)}\s*:\s*{NUMBER}px", style)
+    return float(match.group(1)) if match else default
+
+
+def _insert_positioned_image(paragraph, image: Image.Image, x: float, y: float, width: float, height: float, index: int) -> None:
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG", optimize=True)
+    buffer.seek(0)
+    run = paragraph.add_run()
+    run.add_picture(buffer, width=Emu(int(round(width * EMU_PER_PX))), height=Emu(int(round(height * EMU_PER_PX))))
+    inline = run._r.find(qn("w:drawing")).find(qn("wp:inline"))
+    graphic = inline.find(qn("a:graphic"))
+    x_emu = int(round(x * EMU_PER_PX))
+    y_emu = int(round(y * EMU_PER_PX))
+    width_emu = int(round(width * EMU_PER_PX))
+    height_emu = int(round(height * EMU_PER_PX))
+    anchor = parse_xml(
+        f"""<wp:anchor {nsdecls("wp", "a", "pic", "r")} distT="0" distB="0" distL="0" distR="0"
+        simplePos="0" relativeHeight="{index}" behindDoc="1" locked="1" layoutInCell="1" allowOverlap="1">
+        <wp:simplePos x="0" y="0"/>
+        <wp:positionH relativeFrom="page"><wp:posOffset>{x_emu}</wp:posOffset></wp:positionH>
+        <wp:positionV relativeFrom="page"><wp:posOffset>{y_emu}</wp:posOffset></wp:positionV>
+        <wp:extent cx="{width_emu}" cy="{height_emu}"/>
+        <wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapNone/>
+        <wp:docPr id="{2000 + index}" name="Imagem {index}"/><wp:cNvGraphicFramePr/>
+        </wp:anchor>"""
+    )
+    anchor.append(graphic)
+    inline.getparent().replace(inline, anchor)
+
+
+def _convert_fixed_pages(document: Document, soup: BeautifulSoup, html_text: str) -> int:
+    """Suporta o HTML pdf2html usado pelos materiais já existentes."""
+    pages = soup.select("div.page")
+    if not pages:
+        raise HtmlToDocxError("O HTML não possui páginas compatíveis com o conversor PDF.")
+    css = _css_properties(html_text)
+    cache: dict[str, Image.Image] = {}
+    total_text = 0
+    for page_index, page in enumerate(pages, start=1):
+        if page_index > 1:
+            _anchor_paragraph(document, page_break=True)
+        holder = _anchor_paragraph(document, page_break=False)
+        page_rule = css.get(page.get("id", ""), {})
+        width_value = page_rule.get("width", "794.67px")
+        page_width = float(width_value.removesuffix("px"))
+        scale = A4_WIDTH_MM / 25.4 * 96 / page_width
+        for image_index, image_tag in enumerate(page.find_all("img"), start=1):
+            src = image_tag.get("src", "")
+            if not src.startswith("data:"):
+                continue
+            try:
+                if src not in cache:
+                    cache[src] = _decode_data_url(src)
+                image = cache[src]
+                style = image_tag.get("style", "")
+                x, y = _matrix_position(style)
+                width = _style_number(style, "width", image.width) * scale
+                height = _style_number(style, "height", image.height) * scale
+                _insert_positioned_image(holder, image, x * scale, y * scale, width, height, page_index * 10000 + image_index)
+            except Exception:
+                continue
+
+        for text_node in page.select(".t"):
+            text = text_node.get_text()
+            if not text.strip():
+                continue
+            style = text_node.get("style", "")
+            x, y = _matrix_position(style)
+            class_name = next((value for value in text_node.get("class", []) if value in css), None)
+            properties = css.get(class_name, {})
+            family, bold, italic = _clean_font(properties.get("font-family", "Arial"))
+            color = properties.get("color", "#000000").lstrip("#")
+            if len(color) == 3:
+                color = "".join(char * 2 for char in color)
+            size_match = re.match(NUMBER, properties.get("font-size", "12px"))
+            font = {
+                "size": float(size_match.group(1)) if size_match else 12.0,
+                "line_height": None,
+                "family": family,
+                "bold": bold,
+                "italic": italic,
+                "color": color if re.fullmatch(r"[0-9a-fA-F]{6}", color) else "000000",
+            }
+            paragraph = document.add_paragraph()
+            _position_paragraph(paragraph, int(round(x * scale * TWIPS_PER_PX)), int(round(y * scale * TWIPS_PER_PX)))
+            paragraph.paragraph_format.space_before = paragraph.paragraph_format.space_after = Pt(0)
+            paragraph.paragraph_format.line_spacing = Pt(font["size"] * scale * NORMAL_LINE_HEIGHT * PT_PER_PX)
+            paragraph.paragraph_format.line_spacing_rule = 4
+            _add_runs(paragraph, text_node, font, scale)
+            total_text += 1
+        _anchor_paragraph(document, page_break=False)
+    return total_text
+
 def convert_html_file_to_docx(html_path: Path, docx_path: Path) -> None:
     html_text = html_path.read_text(encoding="utf-8")
     fonts, pages = _read_css(html_text)
     soup = BeautifulSoup(html_text, "html.parser")
     sheets = soup.select("section.folha")
-    if not sheets:
-        raise HtmlToDocxError("O HTML não possui folhas A4 compatíveis com o conversor PDF.")
 
     document = Document()
     _configure_a4(document)
     for paragraph in list(document.paragraphs):
         paragraph._p.getparent().remove(paragraph._p)
+    if not sheets:
+        _convert_fixed_pages(document, soup, html_text)
+        document.core_properties.title = soup.title.get_text(strip=True) if soup.title else html_path.stem
+        document.save(str(docx_path))
+        return
 
     cache: dict[str, Image.Image] = {}
     a4_width_emu = int(Mm(A4_WIDTH_MM))
