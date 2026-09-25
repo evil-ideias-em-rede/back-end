@@ -17,6 +17,78 @@ from langchain_core.tools import tool
 BASE_DIR = Path(__file__).resolve().parent
 INDICE_PADRAO = BASE_DIR / "indice" / "indice_busca.sqlite"
 PUBLIC_HEARING_LDS = BASE_DIR / "public_hearing" / "PublicHearingBR_LDS.jsonl"
+DEBATE_MIMO_FIXO = (
+    BASE_DIR
+    / "dados_camara"
+    / "resultados_mimo_corpus"
+    / "debate_linha_00001_11853884c09e_anotado.json"
+)
+
+
+def carregar_debate_mimo() -> dict:
+    """Adapta temporariamente o debate anotado fixo ao contrato da tela."""
+    bruto = json.loads(DEBATE_MIMO_FIXO.read_text(encoding="utf-8"))
+    debate_id = str(bruto.get("debate_id", "1"))
+    participantes = []
+    discursos = []
+    propostas = []
+
+    for participante_numero, participante in enumerate(bruto.get("participantes", []), start=1):
+        participante_id = f"mimo-{debate_id}-part-{participante_numero:02d}"
+        nome = str(participante.get("nome") or "")
+        participantes.append(
+            {
+                "id": participante_id,
+                "nome": nome,
+                "partido": None,
+                "papel": "participante",
+            }
+        )
+        for fala_numero, fala in enumerate(participante.get("falas", []), start=1):
+            taxonomia = fala.get("taxonomia") if isinstance(fala.get("taxonomia"), dict) else {}
+            posicionamentos = taxonomia.get("Posicionamento") or []
+            posicionamento = posicionamentos[0] if posicionamentos else None
+            fala_id = str(fala.get("id") or f"{participante_id}-fala-{fala_numero}")
+            discursos.append(
+                {
+                    "id": fala_id,
+                    "participanteId": participante_id,
+                    "orador": nome,
+                    "ordem": fala.get("ordem_no_debate", len(discursos) + 1),
+                    "texto": str(fala.get("texto") or ""),
+                    "resumo": str(fala.get("resumo") or ""),
+                    "posicionamento": posicionamento,
+                    "objeto_do_posicionamento": str(fala.get("objeto_do_posicionamento") or ""),
+                    "taxonomia": taxonomia,
+                }
+            )
+            for proposta_numero, proposta in enumerate(fala.get("propostas") or [], start=1):
+                propostas.append(
+                    {
+                        "id": f"{fala_id}-proposta-{proposta_numero}",
+                        "titulo": "Proposta identificada",
+                        "descricao": str(proposta),
+                        "autorId": participante_id,
+                        "autorNome": nome,
+                    }
+                )
+
+    resumo = (
+        "Debate anotado sobre denúncias de censura e bloqueio de contas na rede social X, "
+        "com falas, taxonomias e propostas identificadas por participante."
+    )
+    return {
+        "id": f"mimo-{debate_id}",
+        "titulo": str(bruto.get("tema") or "Debate anotado"),
+        "tipo": "debate_anotado",
+        "casa": "Câmara dos Deputados",
+        "resumo": resumo,
+        "participantes": participantes,
+        "discursos": discursos,
+        "posicionamentos": {"contra": [], "neutro": [], "favor": [], "ambiguo": []},
+        "propostas": propostas,
+        "status": bruto.get("status"),
+    }
 
 
 def _linhas_materia(materia: str) -> list[str]:
@@ -180,6 +252,9 @@ def listar_audiencias(caminho_indice: Path = INDICE_PADRAO) -> list[dict]:
 
 
 def consultar_audiencia(audiencia_id: int | str, caminho_indice: Path = INDICE_PADRAO) -> dict | None:
+    # Temporário: qualquer item clicado na tela abre o mesmo debate anotado.
+    if DEBATE_MIMO_FIXO.is_file():
+        return carregar_debate_mimo()
     try:
         ref_id = str(int(str(audiencia_id).removeprefix("aud-")))
     except (TypeError, ValueError):
