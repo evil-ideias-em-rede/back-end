@@ -11,6 +11,7 @@ from .agent.lesson_plan_node import lesson_plan_node
 from .agent.political_leteracy_node import political_leteracy_node
 from .agent.writing_workshop_node import writing_workshop_node
 from .agent.slides_node import slides_node
+from .agent.template_editor_node import template_editor_node
 from .tools.sandbox.execute_bash import execute_bash
 from .tools.retrieval.audiencias import consultar_audiencia_por_id
 from .tools.retrieval.tool_buscar_audiencias import buscar_audiencias
@@ -26,6 +27,7 @@ AGENTS = [
     {"agent_name": "generic_activity_node", "agent_function": generic_activity_node},
     {"agent_name": "writing_workshop_node", "agent_function": writing_workshop_node},
     {"agent_name": "slides_node", "agent_function": slides_node},
+    {"agent_name": "template_editor_node", "agent_function": template_editor_node},
 ]
 
 AGENT_NAMES = {}

@@ -6,6 +6,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import jwt
+from openai import AuthenticationError
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
 from langchain_core.messages import AIMessage, HumanMessage
 from pydantic import BaseModel, ConfigDict, Field
@@ -39,6 +40,9 @@ AgentName = Literal[
     "political_leteracy",
     "writing_workshop",
     "slides",
+    "editor_geral",
+    # Compatibilidade com sessões criadas pela primeira versão do editor.
+    "template_editor",
 ]
 
 GRAPH_AGENT_NAMES = {
@@ -49,6 +53,8 @@ GRAPH_AGENT_NAMES = {
     "generic": "generic_activity_node",
     "writing_workshop": "writing_workshop_node",
     "slides": "slides_node",
+    "editor_geral": "template_editor_node",
+    "template_editor": "template_editor_node",
 }
 
 
@@ -340,6 +346,8 @@ def _workflow_artifacts(session_id: str, agent_name: AgentName) -> dict:
     elif agent_name in {
         "debate", "generic", "lesson_plan", "political_leteracy",
         "writing_workshop", "slides",
+        "editor_geral",
+        "template_editor",
     }:
         filename = "HTML.html"
     else:
@@ -834,6 +842,11 @@ async def _process_workflow_message(
         graph_config = _graph_config(session_id, body.agent_name)
         result = await GRAPH_BUILDER.ainvoke(state, config=graph_config)
         reply_text = _clean_agent_text(result["messages"][-1].content)
+    except AuthenticationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="A chave OPENAI_API_KEY está ausente ou inválida no back-end. Preencha back-end/.env e reinicie o serviço.",
+        ) from exc
     except Exception:
         # A entrada do usuário já foi salva. Deixamos o erro chegar ao front
         # para que uma falha do provedor não seja confundida com resposta do agente.
@@ -855,6 +868,8 @@ async def _process_workflow_message(
     if body.agent_name in {
         "debate", "generic", "lesson_plan", "political_leteracy",
         "writing_workshop", "slides",
+        "editor_geral",
+        "template_editor",
     }:
         html_path = _workflow_workspace(session_id) / "sandbox" / "HTML.html"
         if html_path.is_file():
