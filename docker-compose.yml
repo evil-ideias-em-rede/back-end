@@ -48,3 +48,24 @@ services:
       timeout: 3s
       retries: 12
       start_period: 10s
+
+  frontend:
+    build:
+      context: ../front-end
+      dockerfile: Dockerfile
+    environment:
+      # Esta URL é usada pelo navegador, portanto aponta para a porta
+      # publicada no host e não para o nome interno do serviço Docker.
+      VITE_API_URL: "http://127.0.0.1:8006"
+    ports:
+      - "127.0.0.1:5173:5173"
+    volumes:
+      - ../front-end:/app
+      - frontend_node_modules:/app/node_modules
+    depends_on:
+      backend:
+        condition: service_healthy
+    init: true
+
+volumes:
+  frontend_node_modules:

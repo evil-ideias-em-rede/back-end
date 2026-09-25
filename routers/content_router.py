@@ -61,6 +61,9 @@ from services.pdf_to_html import PdfConversionError, convert_pdf_bytes_to_html
 
 router = APIRouter(prefix="/api", tags=["professor"])
 
+_thumbnail_cache: dict[str, bytes] = {}
+_thumbnail_lock = asyncio.Lock()
+
 
 def _decode_asset(value: str | None) -> bytes | None:
     if not value:
@@ -106,6 +109,39 @@ def _pdf_to_html(content: bytes) -> bytes:
         # Mantém o upload funcional em ambientes sem Poppler ou em PDFs
         # problemáticos; o container oficial instala o conversor principal.
         return _pdf_to_html_fallback(content)
+
+
+def _first_page_png(content: bytes, source_type: str = "html") -> bytes:
+    """Retorna uma miniatura PNG da primeira página do conteúdo."""
+    with tempfile.TemporaryDirectory(prefix="preview-thumbnail-") as tmpdir:
+        if source_type == "pdf":
+            pdf_content = content
+        else:
+            pdf_path = Path(tmpdir) / "preview.pdf"
+            render_html_to_pdf(content, pdf_path, "V", tmpdir)
+            pdf_content = pdf_path.read_bytes()
+
+        document = fitz.open(stream=pdf_content, filetype="pdf")
+        try:
+            if document.page_count == 0:
+                raise RuntimeError("O documento não possui páginas")
+            page = document.load_page(0)
+            pixmap = page.get_pixmap(matrix=fitz.Matrix(1.35, 1.35), alpha=False)
+            return pixmap.tobytes("png")
+        finally:
+            document.close()
+
+
+async def _cached_first_page_png(cache_key: str, content: bytes, source_type: str = "html") -> bytes:
+    async with _thumbnail_lock:
+        cached = _thumbnail_cache.get(cache_key)
+        if cached is not None:
+            return cached
+        thumbnail = await asyncio.to_thread(_first_page_png, content, source_type)
+        if len(_thumbnail_cache) >= 64:
+            _thumbnail_cache.pop(next(iter(_thumbnail_cache)))
+        _thumbnail_cache[cache_key] = thumbnail
+        return thumbnail
 
 
 def _stored_html(row, convert_pdf: bool = False) -> str:
@@ -379,6 +415,61 @@ async def post_template(body: TemplateCreateIn, user: CurrentUser = Depends(get_
     return _template_output(row)
 
 
+@router.get("/templates/{template_id}/download")
+async def download_template(
+    template_id: UUID,
+    format: Literal["html", "pdf", "docx"] = Query(...),
+    user: CurrentUser = Depends(get_current_user),
+):
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await get_template(conn, user.user_id, template_id)
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template não encontrado")
+
+    # O HTML exibido em Templates é a fonte única das exportações. Para
+    # templates criados a partir de PDF, _stored_html faz a conversão antes.
+    html_content = _stored_html(row, convert_pdf=True).encode("utf-8")
+    if not html_content.strip():
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="O HTML do template está vazio")
+
+    if format == "html":
+        content = html_content
+    elif format == "pdf":
+        with tempfile.TemporaryDirectory(prefix="template-download-") as tmpdir:
+            pdf_path = Path(tmpdir) / "template.pdf"
+            try:
+                await asyncio.to_thread(render_html_to_pdf, html_content, pdf_path, "V", tmpdir)
+                content = pdf_path.read_bytes()
+            except subprocess.TimeoutExpired as exc:
+                raise HTTPException(status_code=504, detail="A conversão para PDF excedeu o tempo limite") from exc
+            except FileNotFoundError as exc:
+                raise HTTPException(status_code=503, detail="O conversor de PDF não está disponível") from exc
+            except RuntimeError as exc:
+                raise HTTPException(status_code=502, detail=str(exc)) from exc
+    else:
+        try:
+            content = await asyncio.to_thread(
+                convert_html_bytes_to_docx,
+                html_content,
+                row["title"] or "template",
+            )
+        except HtmlToDocxError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    base_name = _safe_name(Path(row["file_name"] or row["title"]).stem)
+    media_types = {
+        "html": "text/html; charset=utf-8",
+        "pdf": "application/pdf",
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }
+    return Response(
+        content=content,
+        media_type=media_types[format],
+        headers={"Content-Disposition": f'attachment; filename="{base_name}.{format}"'},
+    )
+
+
 @router.get("/templates/{template_id}", response_model=TemplateOut)
 async def get_template_by_id(template_id: UUID, user: CurrentUser = Depends(get_current_user)):
     pool = get_pool()
@@ -471,6 +562,63 @@ async def get_material_by_id(material_id: UUID, user: CurrentUser = Depends(get_
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Material não encontrado")
     return _material_output(row)
+
+
+@router.get("/materiais/{material_id}/preview")
+async def preview_material(material_id: UUID, user: CurrentUser = Depends(get_current_user)):
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await get_material(conn, user.user_id, material_id)
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Material não encontrado")
+    if row["file_type"] != "pdf":
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="A prévia está disponível apenas para PDFs")
+
+    stored_content = bytes(row["file_content"]) if row["file_content"] else None
+    if not stored_content:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Arquivo PDF não encontrado")
+    return Response(
+        content=_pdf_to_html(stored_content),
+        media_type="text/html; charset=utf-8",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@router.get("/materiais/{material_id}/thumbnail")
+async def thumbnail_material(material_id: UUID, user: CurrentUser = Depends(get_current_user)):
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await get_material(conn, user.user_id, material_id)
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Material não encontrado")
+
+    stored_content = bytes(row["file_content"]) if row["file_content"] else None
+    if row["file_type"] == "pdf":
+        if not stored_content:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Arquivo PDF não encontrado")
+        source_content = stored_content
+        source_type = "pdf"
+    elif row["file_type"] == "html":
+        source_content = (stored_content or (row["html_content"] or "").encode("utf-8"))
+        source_type = "html"
+    else:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="A prévia deste formato não está disponível")
+
+    if not source_content.strip():
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="O conteúdo do material está vazio")
+    try:
+        thumbnail = await _cached_first_page_png(
+            f"material:{material_id}:{row['updated_at']}",
+            source_content,
+            source_type,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise HTTPException(status_code=504, detail="A prévia excedeu o tempo limite") from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail="O conversor de PDF não está disponível") from exc
+    except (RuntimeError, ValueError, OSError) as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return Response(content=thumbnail, media_type="image/png", headers={"Cache-Control": "private, max-age=300"})
 
 
 @router.get("/materiais/{material_id}/download")
