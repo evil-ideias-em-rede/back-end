@@ -24,10 +24,11 @@ from db.queries import (
     get_workflow_sessions,
     get_workflow_sessions_for_owner,
     update_workflow_session_stage,
+    update_workflow_session_selected_audience,
 )
 from graph.main import GRAPH_BUILDER
 from graph.tools.sandbox.workdir import _extrai_sandbox_dir, remover_work_dir, workspace_for_chat, workspace_id_for_chat
-from graph.tools.retrieval.audiencias import listar_audiencias
+from graph.tools.retrieval.audiencias import carregar_audiencia_anotada, consultar_audiencia, listar_audiencias
 from services.workflow_files import persist_workflow_files, restore_workflow_files
 
 
@@ -67,14 +68,20 @@ class WorkflowAdvanceIn(BaseModel):
 class WorkflowSessionOut(BaseModel):
     id: str
     created_at: str
-    selected_agent: AgentName | None = None
+    # Sessões antigas também podem ter sido criadas por editores legados
+    # (por exemplo, ``editor_geral``). A resposta da sessão precisa continuar
+    # aceitando esses valores para não quebrar a listagem do histórico.
+    selected_agent: str | None = None
+    selected_audience_id: str | None = None
     messages: list[dict]
 
 
 class WorkflowSessionSummaryOut(BaseModel):
     id: str
     created_at: str
-    selected_agent: AgentName | None = None
+    # A página inicial filtra os tipos que não pertencem à continuação dos
+    # fluxos, mas ainda precisa receber a lista completa sem erro de schema.
+    selected_agent: str | None = None
     current_stage: Literal["audiences", "editor"] = "audiences"
     message_count: int
     last_message_at: str | None = None
@@ -230,6 +237,7 @@ async def _ensure_session(session_id: str) -> dict:
         session_id=str(session_row["id"]),
         created_at=created_at,
         selected_agent=session_row["selected_agent"],
+        selected_audience_id=session_row["selected_audience_id"],
     )
     for row in message_rows:
         memory_store.add_message(
@@ -380,7 +388,6 @@ def _audiencias_do_indice() -> list[dict]:
 
 
 def _audiencia_for_planning_item(item: dict) -> dict | None:
-    audiences = _audiencias_do_indice()
     candidate_ids = [
         item.get("audiencia_id"),
         item.get("audienciaId"),
@@ -390,9 +397,14 @@ def _audiencia_for_planning_item(item: dict) -> dict | None:
     for candidate_id in candidate_ids:
         if candidate_id is None:
             continue
-        match = next((audiencia for audiencia in audiences if str(audiencia.get("id")) == str(candidate_id)), None)
-        if match:
-            return match
+        # A tabela ``audiencias`` pode não ter ``estrutura_json`` preenchido
+        # para todas as sessões. A consulta por ID usa o índice e o JSONL como
+        # fallback e devolve a estrutura real, com participantes e falas.
+        audiencia = consultar_audiencia(str(candidate_id))
+        if audiencia is not None:
+            return audiencia
+
+    audiences = _audiencias_do_indice()
     title = str(item.get("titulo", "")).strip().casefold()
     if title:
         return next(
@@ -732,7 +744,20 @@ async def select_workflow_planning(
 
     audiencia_path = _workflow_workspace(session_id) / "sandbox" / "audiencia.json"
     audiencia_path.parent.mkdir(parents=True, exist_ok=True)
-    audiencia_path.write_text(json.dumps(audiencia, ensure_ascii=False, indent=2), encoding="utf-8")
+    # O sandbox guarda o JSON anotado original, com as falas e propostas do
+    # corpus MIMO. A resposta HTTP continua usando a estrutura adaptada para
+    # alimentar a tela central.
+    audiencia_para_sandbox = carregar_audiencia_anotada(audiencia.get("id")) or audiencia
+    audiencia_path.write_text(
+        json.dumps(audiencia_para_sandbox, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        updated = await update_workflow_session_selected_audience(conn, session_id, audiencia.get("id"))
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Sessão não encontrada")
+    memory_store.set_selected_audience(session_id, str(audiencia.get("id")))
     await persist_workflow_files(session_id)
     return audiencia
 

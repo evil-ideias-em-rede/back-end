@@ -198,6 +198,34 @@ def buscar_vetorial(
     return resultados
 
 
+def buscar_materias_vetorial(
+    conexao: sqlite3.Connection,
+    pergunta: str,
+    k: int = 10,
+    vetor_pergunta: list[float] | None = None,
+) -> list[dict]:
+    """Busca audiências pelo embedding da matéria completa.
+
+    ``audiencias_vec`` tem uma linha por audiência e usa ``ref_id`` como
+    chave. O texto da matéria fica fora da tabela vetorial; esta função
+    retorna o identificador e a distância para a tool cruzar os metadados.
+    """
+    vetor = sqlite_vec.serialize_float32(vetor_pergunta or _embed_pergunta(pergunta))
+    linhas = conexao.execute(
+        """
+        SELECT ref_id, distance
+        FROM audiencias_vec
+        WHERE embedding_materia MATCH :vetor AND k = :k
+        ORDER BY distance
+        """,
+        {"vetor": vetor, "k": k},
+    ).fetchall()
+    return [
+        {"ref_id": str(ref_id), "distance": distance}
+        for ref_id, distance in linhas[:k]
+    ]
+
+
 def buscar_hibrido(
     conexao: sqlite3.Connection,
     pergunta: str,

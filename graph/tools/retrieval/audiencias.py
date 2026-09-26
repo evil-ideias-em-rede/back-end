@@ -9,6 +9,7 @@ import json
 import re
 import sqlite3
 from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
 
 from langchain_core.tools import tool
@@ -17,78 +18,42 @@ from langchain_core.tools import tool
 BASE_DIR = Path(__file__).resolve().parent
 INDICE_PADRAO = BASE_DIR / "indice" / "indice_busca.sqlite"
 PUBLIC_HEARING_LDS = BASE_DIR / "public_hearing" / "PublicHearingBR_LDS.jsonl"
-DEBATE_MIMO_FIXO = (
-    BASE_DIR
-    / "dados_camara"
-    / "resultados_mimo_corpus"
-    / "debate_linha_00001_11853884c09e_anotado.json"
-)
+PUBLIC_HEARING_ANOTADOS_DIR = BASE_DIR / "dados_camara" / "resultados_mimo_corpus"
 
 
-def carregar_debate_mimo() -> dict:
-    """Adapta temporariamente o debate anotado fixo ao contrato da tela."""
-    bruto = json.loads(DEBATE_MIMO_FIXO.read_text(encoding="utf-8"))
-    debate_id = str(bruto.get("debate_id", "1"))
-    participantes = []
-    discursos = []
-    propostas = []
+@lru_cache(maxsize=1)
+def _carregar_audiencias_lds() -> dict[str, dict]:
+    """Carrega o dataset real indexado pelo ID da sessão."""
+    audiencias = {}
+    with PUBLIC_HEARING_LDS.open(encoding="utf-8") as arquivo:
+        for linha in arquivo:
+            if linha.strip():
+                registro = json.loads(linha)
+                audiencias[str(registro["id"])] = registro
+    return audiencias
 
-    for participante_numero, participante in enumerate(bruto.get("participantes", []), start=1):
-        participante_id = f"mimo-{debate_id}-part-{participante_numero:02d}"
-        nome = str(participante.get("nome") or "")
-        participantes.append(
-            {
-                "id": participante_id,
-                "nome": nome,
-                "partido": None,
-                "papel": "participante",
-            }
-        )
-        for fala_numero, fala in enumerate(participante.get("falas", []), start=1):
-            taxonomia = fala.get("taxonomia") if isinstance(fala.get("taxonomia"), dict) else {}
-            posicionamentos = taxonomia.get("Posicionamento") or []
-            posicionamento = posicionamentos[0] if posicionamentos else None
-            fala_id = str(fala.get("id") or f"{participante_id}-fala-{fala_numero}")
-            discursos.append(
-                {
-                    "id": fala_id,
-                    "participanteId": participante_id,
-                    "orador": nome,
-                    "ordem": fala.get("ordem_no_debate", len(discursos) + 1),
-                    "texto": str(fala.get("texto") or ""),
-                    "resumo": str(fala.get("resumo") or ""),
-                    "posicionamento": posicionamento,
-                    "objeto_do_posicionamento": str(fala.get("objeto_do_posicionamento") or ""),
-                    "taxonomia": taxonomia,
-                }
-            )
-            for proposta_numero, proposta in enumerate(fala.get("propostas") or [], start=1):
-                propostas.append(
-                    {
-                        "id": f"{fala_id}-proposta-{proposta_numero}",
-                        "titulo": "Proposta identificada",
-                        "descricao": str(proposta),
-                        "autorId": participante_id,
-                        "autorNome": nome,
-                    }
-                )
 
-    resumo = (
-        "Debate anotado sobre denúncias de censura e bloqueio de contas na rede social X, "
-        "com falas, taxonomias e propostas identificadas por participante."
-    )
-    return {
-        "id": f"mimo-{debate_id}",
-        "titulo": str(bruto.get("tema") or "Debate anotado"),
-        "tipo": "debate_anotado",
-        "casa": "Câmara dos Deputados",
-        "resumo": resumo,
-        "participantes": participantes,
-        "discursos": discursos,
-        "posicionamentos": {"contra": [], "neutro": [], "favor": [], "ambiguo": []},
-        "propostas": propostas,
-        "status": bruto.get("status"),
-    }
+@lru_cache(maxsize=1)
+def _carregar_audiencias_anotadas() -> dict[str, dict]:
+    """Carrega as falas anotadas do MIMO pelo mesmo ID da audiência."""
+    audiencias = {}
+    if not PUBLIC_HEARING_ANOTADOS_DIR.is_dir():
+        return audiencias
+    for caminho in PUBLIC_HEARING_ANOTADOS_DIR.glob("*_anotado.json"):
+        with caminho.open(encoding="utf-8") as arquivo:
+            registro = json.load(arquivo)
+        if registro.get("debate_id") is not None:
+            audiencias[str(registro["debate_id"])] = registro
+    return audiencias
+
+
+def carregar_audiencia_anotada(audiencia_id: int | str) -> dict | None:
+    """Retorna o JSON anotado original da audiência, sem adaptá-lo."""
+    try:
+        ref_id = str(int(str(audiencia_id).removeprefix("aud-")))
+    except (TypeError, ValueError):
+        return None
+    return _carregar_audiencias_anotadas().get(ref_id)
 
 
 def _linhas_materia(materia: str) -> list[str]:
@@ -112,6 +77,18 @@ def _data_materia(materia: str) -> str | None:
     return datetime.strptime(encontrado.group(1), "%d/%m/%Y").date().isoformat()
 
 
+def _corpo_materia(materia: str) -> str:
+    """Retorna somente o texto jornalístico, sem título, subtítulo e data."""
+    linhas = (materia or "").splitlines()
+    indice_data = next(
+        (indice for indice, linha in enumerate(linhas) if re.search(r"\b\d{2}/\d{2}/\d{4}\b", linha)),
+        None,
+    )
+    if indice_data is None:
+        return materia.strip()
+    return "\n\n".join(linha.strip() for linha in linhas[indice_data + 1 :] if linha.strip())
+
+
 def _partido(cargo: str) -> str | None:
     """Extrai o partido quando o cargo contém o padrão Partido-UF."""
     encontrado = re.search(r"\(([^()]+)-[A-Za-z]{2}\)", cargo or "")
@@ -120,51 +97,185 @@ def _partido(cargo: str) -> str | None:
     return encontrado.group(1).strip().upper()
 
 
-def montar_audiencia(registro: dict) -> dict:
+_MARCADORES_PROPOSTA = (
+    "é preciso",
+    "e preciso",
+    "é necessário",
+    "e necessario",
+    "deve ",
+    "devem ",
+    "tem que",
+    "têm que",
+    "temos que",
+    "precisamos",
+    "defende que",
+    "defendem que",
+    "propõe",
+    "propoe",
+    "propõem",
+    "propoem",
+    "pede que",
+    "pedem que",
+    "solicita",
+    "solicitam",
+    "sugere",
+    "sugerem",
+    "recomenda",
+    "recomendam",
+    "queremos",
+)
+
+
+def _extrair_propostas(envolvidos: list[dict], audiencia_id: int) -> list[dict]:
+    """Extrai apenas encaminhamentos explicitamente propositivos das opiniões.
+
+    O LDS não fornece uma coluna própria de propostas. As opiniões continuam
+    sendo preservadas como fonte; este fallback só transforma em proposta uma
+    opinião que contém um marcador normativo explícito.
+    """
+    propostas = []
+    for envolvido in envolvidos:
+        autor = str(envolvido.get("nome") or "").strip()
+        for opiniao in envolvido.get("opinioes") or []:
+            texto = " ".join(str(opiniao or "").split())
+            texto_normalizado = texto.casefold()
+            if not texto or not any(marcador in texto_normalizado for marcador in _MARCADORES_PROPOSTA):
+                continue
+            frases = re.split(r"(?<=[.!?])\s+", texto)
+            titulo = next(
+                (
+                    frase.strip().strip('"“”')
+                    for frase in frases
+                    if any(marcador in frase.casefold() for marcador in _MARCADORES_PROPOSTA)
+                ),
+                texto.split(":", 1)[0].strip(),
+            )
+            if len(titulo) > 110:
+                titulo = f"{titulo[:107].rstrip()}…"
+            propostas.append(
+                {
+                    "id": f"{audiencia_id}-prop-{len(propostas) + 1:02d}",
+                    "titulo": titulo,
+                    "descricao": texto,
+                    "autorNome": autor,
+                }
+            )
+    return propostas
+
+
+def montar_audiencia(registro: dict, anotada: dict | None = None) -> dict:
     audiencia_id = int(registro["id"])
+    if anotada is None:
+        anotada = carregar_audiencia_anotada(audiencia_id)
     materia = str(registro.get("materia") or "")
     linhas = _linhas_descritivas(materia)
     metadados = registro.get("metadados") or {}
     envolvidos = metadados.get("envolvidos") or []
 
+    dados_por_nome = {
+        str(envolvido.get("nome") or "").strip().casefold(): envolvido
+        for envolvido in envolvidos
+        if str(envolvido.get("nome") or "").strip()
+    }
+
     participantes = []
     discursos = []
-    for participante_numero, envolvido in enumerate(envolvidos, start=1):
+    fontes_participantes = (anotada or {}).get("participantes") or envolvidos
+    for participante_numero, envolvido in enumerate(fontes_participantes, start=1):
         participante_id = f"{audiencia_id}-part-{participante_numero:02d}"
         nome = str(envolvido.get("nome") or "")
-        cargo = str(envolvido.get("cargo") or "")
+        envolvido_lds = dados_por_nome.get(nome.strip().casefold(), {})
+        cargo = str(envolvido.get("cargo") or envolvido_lds.get("cargo") or "")
         partido = _partido(cargo)
+        papel = "presidente" if "presidente" in cargo.casefold() else "participante"
         participantes.append(
             {
                 "id": participante_id,
                 "nome": nome,
                 "partido": partido,
                 "papel": cargo or None,
+                "tipo": papel,
             }
         )
-        for opiniao_numero, opiniao in enumerate(envolvido.get("opinioes") or [], start=1):
+        falas = envolvido.get("falas")
+        if falas is None:
+            falas = [
+                {
+                    "id": f"f{opiniao_numero:05d}",
+                    "ordem_no_debate": opiniao_numero,
+                    "texto": opiniao,
+                    "taxonomia": {},
+                    "resumo": str(opiniao),
+                    "objeto_do_posicionamento": "",
+                    "propostas": [],
+                    "interrupcoes": [],
+                    "pendencias_revisao": [],
+                }
+                for opiniao_numero, opiniao in enumerate(envolvido.get("opinioes") or [], start=1)
+            ]
+        for fala in falas:
+            taxonomia = fala.get("taxonomia") or {}
+            posicionamentos = taxonomia.get("Posicionamento") or []
             discursos.append(
                 {
-                    "id": f"{audiencia_id}-disc-{len(discursos) + 1:02d}",
+                    "id": str(fala.get("id") or f"{audiencia_id}-disc-{len(discursos) + 1:02d}"),
                     "participanteId": participante_id,
                     "orador": nome,
                     "partido": partido,
-                    "ordem": len(discursos) + 1,
-                    "posicionamento": None,
-                    "texto": str(opiniao),
+                    "ordem": int(fala.get("ordem_no_debate") or len(discursos) + 1),
+                    "posicionamento": posicionamentos[0] if posicionamentos else None,
+                    "texto": str(fala.get("texto") or ""),
+                    "taxonomia": taxonomia,
+                    "resumo": str(fala.get("resumo") or ""),
+                    "objeto_do_posicionamento": str(fala.get("objeto_do_posicionamento") or ""),
+                    "propostas": fala.get("propostas") or [],
+                    "interrupcoes": fala.get("interrupcoes") or [],
+                    "pendencias_revisao": fala.get("pendencias_revisao") or [],
                 }
             )
 
-    titulo = linhas[0] if linhas else str(metadados.get("assunto") or f"Audiência {audiencia_id}")
-    resumo = " ".join(linhas[1:3]) or str(metadados.get("assunto") or "")
+    titulo = str(
+        (anotada or {}).get("tema")
+        or (linhas[0] if linhas else metadados.get("assunto") or f"Audiência {audiencia_id}")
+    )
+    # A seção "Resumo da audiência" do frontend deve exibir a matéria
+    # jornalística original do LDS. As falas, taxonomias e propostas continuam
+    # vindo do JSON anotado do MIMO.
+    resumo = _corpo_materia(materia) or str((anotada or {}).get("tl_dr") or " ".join(linhas[1:3]) or metadados.get("assunto") or "")
+    propostas = []
+    propostas_vistas = set()
+    for discurso in discursos:
+        for proposta_numero, proposta in enumerate(discurso.get("propostas") or [], start=1):
+            texto = str(proposta or "").strip()
+            if not texto:
+                continue
+            chave = (discurso["orador"].casefold(), " ".join(texto.casefold().split()))
+            if chave in propostas_vistas:
+                continue
+            propostas_vistas.add(chave)
+            propostas.append(
+                {
+                    "id": f"{audiencia_id}-prop-{len(propostas) + 1:02d}",
+                    "titulo": texto,
+                    "descricao": texto,
+                    "autorNome": discurso["orador"],
+                    "autorId": discurso["participanteId"],
+                    "falaId": discurso["id"],
+                }
+            )
+    if not anotada:
+        propostas = _extrair_propostas(envolvidos, audiencia_id)
     return {
         "id": audiencia_id,
+        "ref_id": str(audiencia_id),
         "titulo": titulo,
         "tipo": "audiencia_publica",
         "casa": "Câmara dos Deputados",
         "comissao": None,
         "data": _data_materia(materia),
         "resumo": resumo,
+        "materia": materia,
+        "transcricao": str(registro.get("transcricao") or ""),
         "integraUrl": None,
         "participantes": participantes,
         "discursos": discursos,
@@ -174,7 +285,7 @@ def montar_audiencia(registro: dict) -> dict:
             "favor": [],
             "ambiguos": [],
         },
-        "propostas": [],
+        "propostas": propostas,
         "lastModifiedAt": None,
     }
 
@@ -252,24 +363,37 @@ def listar_audiencias(caminho_indice: Path = INDICE_PADRAO) -> list[dict]:
 
 
 def consultar_audiencia(audiencia_id: int | str, caminho_indice: Path = INDICE_PADRAO) -> dict | None:
-    # Temporário: qualquer item clicado na tela abre o mesmo debate anotado.
-    if DEBATE_MIMO_FIXO.is_file():
-        return carregar_debate_mimo()
+    """Consulta a estrutura anotada ou o registro real do LDS pelo ID.
+
+    O ``id`` do dataset é o mesmo ``ref_id`` usado pelo índice vetorial e
+    pelos chunks de ``documentos``. Quando não há ``estrutura_json`` anotada
+    no SQLite, o registro original do LDS é adaptado ao contrato da aplicação.
+    """
     try:
         ref_id = str(int(str(audiencia_id).removeprefix("aud-")))
     except (TypeError, ValueError):
         return None
 
+    registro_lds = _carregar_audiencias_lds().get(ref_id)
+    registro_anotado = _carregar_audiencias_anotadas().get(ref_id)
+    if registro_lds and registro_anotado:
+        return montar_audiencia(registro_lds, registro_anotado)
     conexao = sqlite3.connect(caminho_indice)
     try:
-        _garantir_coluna_estrutura(conexao)
-        row = conexao.execute(
-            "SELECT estrutura_json FROM audiencias WHERE ref_id = ?",
-            (ref_id,),
-        ).fetchone()
-        return json.loads(row[0]) if row and row[0] else None
+        colunas = {row[1] for row in conexao.execute("PRAGMA table_info(audiencias)")}
+        if "estrutura_json" in colunas:
+            row = conexao.execute(
+                "SELECT estrutura_json FROM audiencias WHERE ref_id = ?",
+                (ref_id,),
+            ).fetchone()
+            if row and row[0]:
+                return json.loads(row[0])
     finally:
         conexao.close()
+
+    if registro_lds:
+        return montar_audiencia(registro_lds, registro_anotado)
+    return None
 
 
 @tool("consultar_audiencia_por_id")
@@ -277,8 +401,11 @@ def consultar_audiencia_por_id(audiencia_id: int) -> str:
     """Retorna o debate inteiro pelo ID da audiência, já segmentado e anotado.
 
     Use depois de localizar a audiência com ``buscar_audiencias``. O retorno traz
-    o debate completo, organizado por participante e, dentro de cada um, pelas
-    suas ``falas`` — uma fala é tudo o que a pessoa disse até passar a palavra.
+    o registro real correspondente ao ``ref_id`` encontrado, incluindo ``materia``
+    e a ``transcricao`` original quando a audiência vem do dataset LDS. Ele é
+    organizado por participante e, dentro de cada um, pelas suas ``falas`` —
+    no LDS, essas falas correspondem às opiniões estruturadas da matéria;
+    a transcrição integral fica no campo ``transcricao``.
 
     Cada fala pode trazer:
 

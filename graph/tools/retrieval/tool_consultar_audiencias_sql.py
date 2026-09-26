@@ -9,6 +9,8 @@ import json
 import os
 import re
 import sqlite3
+from functools import lru_cache
+from pathlib import Path
 
 from dotenv import load_dotenv
 from langchain_core.tools import tool
@@ -23,25 +25,92 @@ _TABELAS_PERMITIDAS = {"audiencias", "documentos"}
 _LIMITE_MAXIMO = 50
 
 
-def _schema_consultavel() -> str:
-    return """
-tabela audiencias:
-- ref_id TEXT PRIMARY KEY — identificador da audiência
-- assunto TEXT — assunto principal
-- materia TEXT — matéria/resumo da audiência
-- envolvidos TEXT — JSON com participantes e opiniões
-- keywords TEXT — palavras-chave
-- estrutura_json TEXT — audiência completa em JSON no formato do frontend
+_DESCRICOES_COLUNAS = {
+    ("audiencias", "ref_id"): "identificador da sessão/audiência; cruza com documentos.ref_id",
+    ("audiencias", "assunto"): "assunto principal da audiência",
+    ("audiencias", "materia"): "matéria jornalística/resumo da audiência",
+    ("audiencias", "envolvidos"): "JSON com participantes, cargos e opiniões",
+    ("audiencias", "keywords"): "JSON com palavras-chave extraídas da matéria",
+    ("audiencias", "estrutura_json"): "estrutura completa da audiência, quando disponível",
+    ("documentos", "doc_id"): "identificador único do chunk",
+    ("documentos", "source"): "origem do documento",
+    ("documentos", "ref_id"): "identificador da audiência de origem",
+    ("documentos", "texto"): "texto do chunk da transcrição",
+    ("documentos", "paragrafo_inicio"): "índice do primeiro parágrafo do chunk",
+    ("documentos", "paragrafo_fim"): "índice do último parágrafo do chunk",
+    ("documentos", "tag"): "categoria temática, quando preenchida",
+}
 
-tabela documentos:
-- doc_id TEXT PRIMARY KEY — identificador do chunk
-- source TEXT — origem do documento, normalmente 'audiencia'
-- ref_id TEXT — identificador da audiência de origem
-- texto TEXT — texto completo do chunk/transcrição
-- paragrafo_inicio INTEGER
-- paragrafo_fim INTEGER
-- tag TEXT — classificação temática, quando preenchida
-""".strip()
+
+def _identificador(nome: str) -> str:
+    """Escapa um identificador SQLite vindo do próprio schema."""
+    return '"' + nome.replace('"', '""') + '"'
+
+
+def _valores_distintos(
+    conexao: sqlite3.Connection, tabela: str, coluna: str
+) -> list[str]:
+    identificador_tabela = _identificador(tabela)
+    identificador_coluna = _identificador(coluna)
+    linhas = conexao.execute(
+        f"SELECT DISTINCT {identificador_coluna} "
+        f"FROM {identificador_tabela} "
+        f"WHERE {identificador_coluna} IS NOT NULL "
+        f"ORDER BY {identificador_coluna} LIMIT 100"
+    ).fetchall()
+    return [str(linha[0]) for linha in linhas]
+
+
+@lru_cache(maxsize=1)
+def _schema_consultavel() -> str:
+    """Gera o schema com cardinalidade sem despejar colunas textuais grandes.
+
+    Para cada coluna informa o tipo, a quantidade de valores distintos e, se
+    houver menos de 100 valores, os valores possíveis. Assim o modelo pode
+    escolher filtros sem receber o conteúdo das transcrições.
+    """
+    caminho = Path(INDICE_PADRAO).resolve()
+    conexao = sqlite3.connect(f"file:{caminho}?mode=ro", uri=True)
+    try:
+        blocos = []
+        for tabela in sorted(_TABELAS_PERMITIDAS):
+            identificador_tabela = _identificador(tabela)
+            existe = conexao.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+                (tabela,),
+            ).fetchone()
+            if not existe:
+                continue
+
+            total = conexao.execute(
+                f"SELECT COUNT(*) FROM {identificador_tabela}"
+            ).fetchone()[0]
+            linhas = [f"tabela {tabela} (linhas: {total}):"]
+            for _, coluna, tipo, notnull, _, pk in conexao.execute(
+                f"PRAGMA table_info({identificador_tabela})"
+            ):
+                identificador_coluna = _identificador(coluna)
+                distintos = conexao.execute(
+                    f"SELECT COUNT(DISTINCT {identificador_coluna}) "
+                    f"FROM {identificador_tabela}"
+                ).fetchone()[0]
+                atributos = [tipo or "NULL"]
+                if pk:
+                    atributos.append("PRIMARY KEY")
+                if notnull:
+                    atributos.append("NOT NULL")
+                descricao = _DESCRICOES_COLUNAS.get((tabela, coluna))
+                linha = f"- {coluna} ({', '.join(atributos)}) — distintos: {distintos}"
+                if descricao:
+                    linha += f" — {descricao}"
+                if 0 < distintos < 100:
+                    valores = _valores_distintos(conexao, tabela, coluna)
+                    linha += f" — valores possíveis: {', '.join(valores)}"
+                linhas.append(linha)
+            blocos.append("\n".join(linhas))
+        return "\n\n".join(blocos)
+    finally:
+        conexao.close()
 
 
 def _gerar_sql(pergunta: str) -> str:
@@ -54,8 +123,8 @@ Regras obrigatórias:
 - Use somente as tabelas audiencias e documentos e as colunas descritas.
 - Para uma audiência específica, filtre por ref_id.
 - Para ler falas/transcrições, consulte documentos.texto.
-- Para obter a audiência completa no formato do frontend, consulte
-  audiencias.estrutura_json.
+- Se a coluna estrutura_json aparecer no schema, ela pode ser usada para
+  obter a audiência completa no formato do frontend.
 - Inclua LIMIT {_LIMITE_MAXIMO} ou menor.
 
 Schema:
@@ -106,6 +175,31 @@ def consultar_audiencias_sql(pergunta: str) -> str:
 
     A consulta é somente leitura e fica limitada às tabelas ``audiencias`` e
     ``documentos`` do índice local.
+
+    Estrutura das tabelas:
+
+    tabela ``audiencias``:
+    - ``ref_id`` (TEXT, PRIMARY KEY) — identificador da sessão/audiência;
+      cruza com ``documentos.ref_id``.
+    - ``assunto`` (TEXT) — assunto principal da audiência.
+    - ``materia`` (TEXT) — matéria jornalística/resumo da audiência.
+    - ``envolvidos`` (TEXT) — JSON com participantes, cargos e opiniões.
+    - ``keywords`` (TEXT) — JSON com palavras-chave extraídas da matéria.
+    - ``estrutura_json`` (TEXT, opcional) — estrutura completa, quando
+      disponível no índice.
+
+    tabela ``documentos``:
+    - ``doc_id`` (TEXT, PRIMARY KEY) — identificador único do chunk.
+    - ``source`` (TEXT) — origem do documento, normalmente ``audiencia``.
+    - ``ref_id`` (TEXT) — identificador da audiência de origem.
+    - ``texto`` (TEXT) — texto do chunk da transcrição.
+    - ``paragrafo_inicio`` (INTEGER) — primeiro parágrafo do chunk.
+    - ``paragrafo_fim`` (INTEGER) — último parágrafo do chunk.
+    - ``tag`` (TEXT, opcional) — categoria temática, quando preenchida.
+
+    O schema enviado ao modelo também informa a quantidade de linhas, os
+    valores distintos por coluna e os valores possíveis quando há menos de
+    100.
     """
     pergunta = pergunta.strip()
     if not pergunta:

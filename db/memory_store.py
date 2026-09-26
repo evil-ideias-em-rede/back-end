@@ -19,12 +19,14 @@ class InMemoryWorkflowStore:
         session_id: str | None = None,
         created_at: str | None = None,
         selected_agent: str | None = None,
+        selected_audience_id: str | None = None,
     ) -> dict:
         session_id = session_id or str(uuid4())
         session = {
             "id": session_id,
             "created_at": created_at or _now(),
             "selected_agent": selected_agent,
+            "selected_audience_id": selected_audience_id,
             "messages": [],
         }
         with self._lock:
@@ -40,6 +42,7 @@ class InMemoryWorkflowStore:
                 "id": session["id"],
                 "created_at": session["created_at"],
                 "selected_agent": session["selected_agent"],
+                "selected_audience_id": session.get("selected_audience_id"),
                 "messages": [message.copy() for message in session["messages"]],
             }
 
@@ -66,6 +69,13 @@ class InMemoryWorkflowStore:
             }
             session["messages"].append(message)
             return message.copy()
+
+    def set_selected_audience(self, session_id: str, audiencia_id: str) -> None:
+        with self._lock:
+            session = self._sessions.get(session_id)
+            if session is None:
+                raise KeyError(session_id)
+            session["selected_audience_id"] = str(audiencia_id)
 
     def messages(self, session_id: str) -> list[dict]:
         return self.snapshot(session_id)["messages"]

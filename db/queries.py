@@ -254,7 +254,7 @@ async def get_workflow_sessions(conn, user_id):
 async def get_workflow_session(conn, session_id):
     return await conn.fetchrow(
         """
-        SELECT id, user_id, owner_user_id, selected_agent, workdir_id,
+        SELECT id, user_id, owner_user_id, selected_agent, selected_audience_id, workdir_id,
                current_stage, created_at, updated_at
         FROM workflow_sessions
         WHERE id=$1
@@ -266,7 +266,7 @@ async def get_workflow_session(conn, session_id):
 async def get_workflow_session_for_owner(conn, session_id, owner_user_id):
     return await conn.fetchrow(
         """
-        SELECT id, user_id, owner_user_id, selected_agent, workdir_id,
+        SELECT id, user_id, owner_user_id, selected_agent, selected_audience_id, workdir_id,
                current_stage, created_at, updated_at
         FROM workflow_sessions
         WHERE id=$1 AND (owner_user_id=$2 OR owner_user_id IS NULL)
@@ -397,6 +397,19 @@ async def update_workflow_session_stage(conn, session_id, current_stage):
         """,
         session_id,
         current_stage,
+    )
+
+
+async def update_workflow_session_selected_audience(conn, session_id, audiencia_id):
+    return await conn.fetchrow(
+        """
+        UPDATE workflow_sessions
+        SET selected_audience_id = $2, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+        RETURNING id, selected_audience_id, updated_at
+        """,
+        session_id,
+        str(audiencia_id),
     )
 
 

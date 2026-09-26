@@ -153,6 +153,7 @@ CREATE TABLE IF NOT EXISTS workflow_sessions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id BIGINT NOT NULL REFERENCES workflow_users(id) ON DELETE CASCADE,
     selected_agent TEXT,
+    selected_audience_id TEXT,
     workdir_id TEXT NOT NULL UNIQUE,
     current_stage TEXT NOT NULL DEFAULT 'audiences',
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -163,6 +164,9 @@ CREATE TABLE IF NOT EXISTS workflow_sessions (
 -- o HTML já foi salvo no sandbox.
 ALTER TABLE workflow_sessions
     ADD COLUMN IF NOT EXISTS current_stage TEXT NOT NULL DEFAULT 'audiences';
+
+ALTER TABLE workflow_sessions
+    ADD COLUMN IF NOT EXISTS selected_audience_id TEXT;
 
 -- Permite associar uma sessão do workflow a uma conta real sem remover o
 -- usuário mock 10 usado pelo protótipo antigo.
