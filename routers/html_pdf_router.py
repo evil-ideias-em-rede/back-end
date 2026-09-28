@@ -12,10 +12,12 @@ from db.pool import get_pool
 from db.queries import get_workflow_session
 from graph.tools.sandbox.shared.html_pdf_tools import render_html_to_pdf
 from graph.tools.sandbox.workdir import workspace_for_chat
+from services.html_to_pptx import HtmlToPptxError, convert_html_bytes_to_pptx
 from services.workflow_files import persist_workflow_files, restore_workflow_files
 
 
 MAX_PDF_HTML_BYTES = 20 * 1024 * 1024
+PPTX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 
 router = APIRouter(prefix="/api/workflow", tags=["html-pdf"])
 
@@ -83,4 +85,41 @@ async def generate_workflow_pdf(
         content=pdf_content,
         media_type="application/pdf",
         headers={"Content-Disposition": 'attachment; filename="atividade.pdf"'},
+    )
+
+
+@router.post("/sessions/{session_id}/pptx")
+async def generate_workflow_pptx(
+    session_id: str,
+    file: UploadFile = File(...),
+):
+    """Converte o HTML horizontal em PPTX, com uma página por slide."""
+    await _session_or_404(session_id)
+    html_content = await file.read(MAX_PDF_HTML_BYTES + 1)
+    if len(html_content) > MAX_PDF_HTML_BYTES:
+        raise HTTPException(status_code=413, detail="O HTML deve ter no máximo 20 MB")
+    if not html_content.strip():
+        raise HTTPException(status_code=422, detail="O HTML não pode estar vazio")
+
+    sandbox_dir = workspace_for_chat("10", f"workflow-{session_id}") / "sandbox"
+    sandbox_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        pptx_content = await asyncio.to_thread(
+            convert_html_bytes_to_pptx,
+            html_content,
+            "apresentacao",
+            sandbox_dir,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise HTTPException(status_code=504, detail="A geração do PPTX excedeu o tempo limite") from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail="O conversor de PPTX não está disponível") from exc
+    except (HtmlToPptxError, RuntimeError) as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    await persist_workflow_files(session_id)
+    return Response(
+        content=pptx_content,
+        media_type=PPTX_MEDIA_TYPE,
+        headers={"Content-Disposition": 'attachment; filename="apresentacao.pptx"'},
     )

@@ -56,6 +56,11 @@ async def send_workflow_message(
 ):
     """Recebe mensagens do brainstorm e do fluxo de audiências sugeridas."""
     # PONTO DE ENTRADA DO TEXTO DO BRAINSTORM: body.text
+    if body.agent_name == "editor_geral":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="O editor geral só pode ser usado no endpoint de edição.",
+        )
     return await _process_workflow_message(session_id, body, user, editor_mode=False)
 
 
@@ -72,7 +77,8 @@ async def send_workflow_message(
 #     }
 #   - text: str — pedido de alteração ou orientação do usuário.
 #   - agent_name: str — agente final responsável pelo material, como
-#     "lesson_plan", "debate", "generic", "writing_workshop" ou "slides".
+#     "lesson_plan", "debate", "generic", "writing_workshop", "slides" ou
+#     "editor_geral" para templates.
 #   - hidden: bool — marca a mensagem como interna quando true.
 #   - user_edited: bool — true se o usuário escreveu, apagou ou formatou algo
 #     manualmente no editor; false caso contrário.

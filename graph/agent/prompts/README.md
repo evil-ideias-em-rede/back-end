@@ -41,6 +41,7 @@ Cada `*_prompt.py` monta o prompt final a partir de três partes: o texto da lib
 | `slides_node` | `23-slides` |
 | `political_leteracy_node` | `24-letramento-midiatico-e-politico` |
 | `generic_activity_node` | `25-criacao-livre` |
+| `general_editor_node` | `16-editor-no-documento` (somente modo de edição) |
 | modo de edição | `16-editor-no-documento` |
 
 ## Prompts sem node

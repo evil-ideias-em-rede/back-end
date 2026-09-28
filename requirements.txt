@@ -1,6 +1,7 @@
 asyncpg==0.30.0
 fastapi==0.116.1
 google-auth==2.38.0
+gdown==6.4.0
 langchain-openai==1.1.10
 langchain-community==0.4.1
 sqlite-vec==0.1.9
@@ -20,3 +21,4 @@ PyMuPDF==1.28.2
 beautifulsoup4==4.13.4
 Pillow==11.3.0
 python-docx==1.2.0
+python-pptx==1.0.2

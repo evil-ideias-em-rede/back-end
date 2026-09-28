@@ -36,6 +36,7 @@ AgentName = Literal[
     "brainstorm",
     "debate",
     "generic",
+    "editor_geral",
     "lesson_plan",
     "political_leteracy",
     "writing_workshop",
@@ -48,6 +49,7 @@ GRAPH_AGENT_NAMES = {
     "debate": "debate_outline_node",
     "political_leteracy": "political_leteracy_node",
     "generic": "generic_activity_node",
+    "editor_geral": "general_editor_node",
     "writing_workshop": "writing_workshop_node",
     "slides": "slides_node",
 }
@@ -347,7 +349,7 @@ def _workflow_artifacts(session_id: str, agent_name: AgentName) -> dict:
         filename = "planning.json"
     elif agent_name in {
         "debate", "generic", "lesson_plan", "political_leteracy",
-        "writing_workshop", "slides",
+        "writing_workshop", "slides", "editor_geral",
     }:
         filename = "HTML.html"
     else:
@@ -879,7 +881,7 @@ async def _process_workflow_message(
     html_url = None
     if body.agent_name in {
         "debate", "generic", "lesson_plan", "political_leteracy",
-        "writing_workshop", "slides",
+        "writing_workshop", "slides", "editor_geral",
     }:
         html_path = _workflow_workspace(session_id) / "sandbox" / "HTML.html"
         if html_path.is_file():

@@ -7,6 +7,7 @@ from .agent.base import web_search
 from .agent.brain_stom_node import brainstorm_node
 from .agent.debate_outline_node import debate_outline_node
 from .agent.generic_activity_node import generic_activity_node
+from .agent.general_editor_node import general_editor_node
 from .agent.lesson_plan_node import lesson_plan_node
 from .agent.political_leteracy_node import political_leteracy_node
 from .agent.writing_workshop_node import writing_workshop_node
@@ -25,6 +26,7 @@ AGENTS = [
     {"agent_name": "debate_outline_node", "agent_function": debate_outline_node},
     {"agent_name": "political_leteracy_node", "agent_function": political_leteracy_node},
     {"agent_name": "generic_activity_node", "agent_function": generic_activity_node},
+    {"agent_name": "general_editor_node", "agent_function": general_editor_node},
     {"agent_name": "writing_workshop_node", "agent_function": writing_workshop_node},
     {"agent_name": "slides_node", "agent_function": slides_node},
 ]

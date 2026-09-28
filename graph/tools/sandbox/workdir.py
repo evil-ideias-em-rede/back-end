@@ -108,6 +108,13 @@ def _copy_shared_files(sandbox_dir: Path, agent_name: str | None = None) -> None
         skip_names.add("planning.json")
     _copy_flat_files(SHARED_FILES_DIR, sandbox_dir, skip_names=skip_names)
     _copy_tree_if_missing(SHARED_FILES_DIR / "geral", sandbox_dir, skip_names=skip_names)
+    if _agent_key(agent_name) in {"editor_geral", "general_editor_node"}:
+        # O editor geral não possui etapa própria de geração, mas usa o mesmo
+        # guia de edição A4 que os agentes especializados.
+        source = SHARED_FILES_DIR / "generic_activity_node" / "geracao_html_a4.md"
+        target = sandbox_dir / source.name
+        if source.is_file() and not target.exists():
+            shutil.copy2(source, target)
     agent_source_dir = _agent_source_dir(agent_name)
     if agent_source_dir:
         _copy_flat_files(agent_source_dir, sandbox_dir, skip_names=skip_names)
