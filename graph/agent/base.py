@@ -2,6 +2,7 @@ from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
 
 from graph.tools.sandbox.execute_bash import execute_bash
+from graph.tools.sandbox.suggested_files import execute_suggested_files
 from graph.tools.sandbox.workdir import workspace_for_chat
 from graph.tools.retrieval.audiencias import consultar_audiencia_por_id
 from graph.tools.retrieval.tool_buscar_audiencias import buscar_audiencias
@@ -100,13 +101,14 @@ async def run_agent(
         agent_tools = [execute_bash, web_search]
     else:
         agent_tools = [
-            execute_bash,
+            execute_suggested_files,
             consultar_audiencia_por_id,
             buscar_audiencias,
             consultar_audiencias_sql,
             consultar_bncc,
             web_search
         ]
+        system_text = system_text.replace("execute_bash", execute_suggested_files.name)
     tool_names = ", ".join(getattr(agent_tool, "name", "ferramenta") for agent_tool in agent_tools)
     system_text += (
         f"\n\nVocê tem exatamente estas ferramentas: {tool_names}. "

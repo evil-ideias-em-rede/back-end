@@ -4,7 +4,7 @@ from langgraph.prebuilt.tool_node import ToolNode
 from langgraph.graph import END, START, StateGraph
 
 from .agent.base import web_search
-from .agent.brain_stom_node import brainstorm_node, execute_planning_bash
+from .agent.brain_stom_node import brainstorm_node
 from .agent.debate_outline_node import debate_outline_node
 from .agent.generic_activity_node import generic_activity_node
 from .agent.lesson_plan_node import lesson_plan_node
@@ -12,6 +12,7 @@ from .agent.political_leteracy_node import political_leteracy_node
 from .agent.writing_workshop_node import writing_workshop_node
 from .agent.slides_node import slides_node
 from .tools.sandbox.execute_bash import execute_bash
+from .tools.sandbox.suggested_files import execute_suggested_files
 from .tools.retrieval.audiencias import consultar_audiencia_por_id
 from .tools.retrieval.tool_buscar_audiencias import buscar_audiencias
 from .tools.retrieval.tool_consultar_audiencias_sql import consultar_audiencias_sql
@@ -67,7 +68,7 @@ graph.add_node(
     "tools",
     ToolNode([
         execute_bash,
-        execute_planning_bash,
+        execute_suggested_files,
         consultar_audiencia_por_id,
         buscar_audiencias,
         consultar_audiencias_sql,

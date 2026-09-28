@@ -8,6 +8,9 @@ from .config_sandbox import _montar_comando_sandboxed
 from langchain_core.runnables import RunnableConfig
 
 
+COMMAND_TIMEOUT_SECONDS = 300
+
+
 def _format_warning(work_dir: str) -> str:
     error = format_planning_file(work_dir)
     return f"\nNão foi possível formatar planning.json automaticamente: {error}" if error else ""
@@ -62,7 +65,10 @@ async def execute_bash(comando: str, config: RunnableConfig) -> str:
         comando_sandbox = _montar_comando_sandboxed(comando, work_dir)
         processo = await asyncio.create_subprocess_exec(*comando_sandbox, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
         try:
-            stdout, stderr = await asyncio.wait_for(processo.communicate(), timeout=120)
+            stdout, stderr = await asyncio.wait_for(
+                processo.communicate(),
+                timeout=COMMAND_TIMEOUT_SECONDS,
+            )
         except asyncio.TimeoutError:
             processo.kill()
             await processo.communicate()
@@ -70,7 +76,7 @@ async def execute_bash(comando: str, config: RunnableConfig) -> str:
             return json.dumps(
                 {
                     "stdout": "",
-                    "stderr": "Comando excedeu o tempo limite (120s)" + warning,
+                    "stderr": f"Comando excedeu o tempo limite ({COMMAND_TIMEOUT_SECONDS}s)" + warning,
                     "returncode": -1,
                     "sucesso": False,
                 },

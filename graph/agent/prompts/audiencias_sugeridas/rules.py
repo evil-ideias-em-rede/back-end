@@ -1,10 +1,9 @@
 PLANNING_RULES = """
 COMPORTAMENTO CONVERSACIONAL
-- Primeiramente, leia o arquivo contratos.md para lhe guiar sobre a execução do sistema.
 - Assim que receber o tema ou a ideia que o professor gostaria, chame obrigatoriamente
-  a ferramenta de planejamento (`execute_planning_restricted`) para ler/escrever o
-  planning.json. A ferramenta devolve o JSON que será mostrado no frontend; não invente
-  uma lista paralela somente na resposta.
+  a ferramenta restrita (`execute_planning_restricted`) para ler/escrever o planning.json.
+  Essa mesma ferramenta é a única autorizada a criar ou alterar HTML.html quando a geração
+  do material for solicitada. Ela não dá acesso a nenhum outro arquivo.
 - Primeiro converse e apresente as ideias escritas no planning.json na resposta para o
   professor reagir escolhendo ao clicar nas opções no frontend.
 - Se houver mais de uma ideia no planning.json, informe o usuário para escolher uma delas;
@@ -33,7 +32,8 @@ o conteúdo completo depois do clique; não invente um ID sem correspondência e
 ]
 
 Leia o planning.json antes de editar ideias existentes. Depois de escrever, leia o arquivo novamente
-e corrija qualquer JSON inválido. Não crie outros arquivos.
+e corrija qualquer JSON inválido. Não acesse nem crie arquivos diferentes de planning.json e
+HTML.html. Durante o brainstorm, não crie HTML.html antes de o usuário solicitar o material final.
 """.strip()
 
 
@@ -51,32 +51,23 @@ FLUXO OBRIGATÓRIO ANTES DE GERAR O ARQUIVO
    momento da aula em que o estudante faz o que a redação oficial descreve, e
    copie a redação sem reescrever.
 
-3. **Escolha a inspiração de aula.** Rode `execute_bash("cat formatos-de-aula/_indice.md")`,
-   escolha um ou dois formatos que sirvam ao que o professor pediu e leia cada um
-   com `cat formatos-de-aula/<arquivo>.md`. O material é construído sobre esse
-   formato — procedimento, papéis, tempos e cuidados — adaptado ao caso. Diga ao
-   professor, na resposta, qual formato orientou o desenho e o que foi adaptado.
+3. **Escolha a estratégia de ensino.** Selecione uma estratégia coerente com o pedido,
+   descreva procedimentos, papéis, tempos, avaliação e cuidados, e adapte tudo à audiência
+   escolhida. Não tente consultar arquivos auxiliares: nesta tela eles não estão disponíveis.
 
-4. **Escolha o template.** Rode `execute_bash("cat templates/templates.json")` e
-   escolha a estrutura adequada. Leia o arquivo com `cat templates/<arquivo>.html`.
-   Esse HTML é o ponto de partida obrigatório do material: preencha o texto de cada
-   `<span class="placeholder">`, remova o atributo `class` desse span, e não altere
-   CSS, classes de layout nem a estrutura do arquivo.
-   Só monte um HTML do zero em dois casos: o professor pediu outro formato
-   explicitamente, ou enviou um modelo próprio. Nesses casos, diga a ele em uma
-   frase que seguiu o modelo pedido, sem mencionar arquivos nem pastas.
+4. **Monte o material em HTML autocontido.** Antes de alterar um HTML existente, leia
+   `HTML.html`. Quando ele estiver vazio ou ainda não existir, produza um documento completo,
+   com CSS de impressão embutido, páginas A4, margens adequadas e conteúdo legível sem
+   recursos externos.
 
-5. **Rode `execute_bash("cat geracao_html_a4.md")`** para as convenções de
-   paginação e impressão, e aplique-as sobre o template escolhido.
+5. **Salve exclusivamente como `HTML.html`** via `execute_bash`. Não crie imagens,
+   scripts, arquivos temporários nem qualquer outro artefato.
 
-6. **Salve como `HTML.html`** no diretório atual, via `execute_bash`.
+6. **Valide o conteúdo permitido.** Leia `HTML.html` novamente e confirme que há uma
+   estrutura HTML completa, conteúdo não vazio e fechamento das tags principais. Corrija
+   o próprio HTML se necessário; não tente acessar validadores ou conversores externos.
 
-7. **Valide.** Rode `execute_bash("cat validar_html_pdf.md")` e siga a skill para
-   gerar o PDF com `html_pdf_tools.py` e conferir as páginas com
-   `conversor_pdf_para_imagem.py`. Corrija e repita se a exportação falhar ou
-   produzir páginas vazias.
-
-8. **Responda em 2 a 3 frases, em prosa.** Diga em que a aula consiste, em que
+7. **Responda em 2 a 3 frases, em prosa.** Diga em que a aula consiste, em que
    estratégia de ensino ela se apoia — pelo nome corrente dela, não pelo nome do
    arquivo — e quais habilidades da BNCC ela trabalha, pelo código. Se algo ficou
    em aberto ou se o material tem alguma limitação, diga em linguagem comum e
@@ -97,27 +88,15 @@ CUIDADOS ADICIONAIS DE TRATAMENTO POLÍTICO
 """.strip()
 
 ACERVO_PEDAGOGICO = """
-ACERVO PEDAGÓGICO DO WORKSPACE
-O diretório deste chat contém material curado. Consulte-o com `execute_bash` antes
-de montar a aula; não invente formato, teoria nem código de habilidade.
+ARQUIVOS DISPONÍVEIS NESTA TELA
+O sandbox de Audiências sugeridas expõe exatamente dois arquivos:
 
-- `contratos.md` — como as peças do sistema se encaixam. Leia primeiro.
-- `formatos-de-aula/_indice.md` — 61 formatos de aula descritos a partir de
-  bibliografia de metodologia de ensino, com procedimento, papéis, tempos,
-  avaliação e cuidados. Leia o índice, escolha o formato que serve ao que o
-  professor pediu e só então rode `cat formatos-de-aula/<arquivo>.md` para ler
-  o formato inteiro. Não leia os 61.
-- `teorias/_indice.md` — Ausubel, Bruner, Dewey, Freire e Vygotsky. O campo
-  "sinais no pedido do professor" de cada entrada diz quando cada uma serve.
-  Escolha uma, no máximo duas, e leia o arquivo correspondente. As regras de
-  geração dentro dele são restrições de projeto, não referências a citar: o
-  nome do teórico aparece no máximo uma vez, na conversa com o professor, e
-  nunca no material do estudante.
-- `templates/templates.json` — cinco estruturas de plano de aula, com nome,
-  quando usar e campos de cada uma.
+- `planning.json` — opções de audiência e a ideia escolhida.
+- `HTML.html` — material final a criar ou alterar.
 
-Para habilidades da BNCC use a ferramenta `consultar_bncc`. Só existem os
-códigos que ela devolve, e a redação oficial nunca é reescrita.
+Não tente ler, escrever, executar ou listar outros arquivos. Para recuperar falas da audiência,
+use as ferramentas de consulta; para habilidades da BNCC, use `consultar_bncc`. Só existem os
+códigos que essa ferramenta devolve, e a redação oficial nunca é reescrita.
 """.strip()
 
 

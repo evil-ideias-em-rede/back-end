@@ -1,6 +1,7 @@
 import asyncio
 import json
 import re
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Callable
 
@@ -22,9 +23,17 @@ def _result(stdout: bytes = b"", stderr: bytes = b"", returncode: int = 0) -> st
     )
 
 
-def _command_for_file(comando: str, allowed_file: Path) -> list[str]:
-    """Monta um bubblewrap que expõe apenas o arquivo permitido."""
+COMMAND_TIMEOUT_SECONDS = 300
+
+
+def _command_for_files(comando: str, allowed_files: Sequence[Path]) -> list[str]:
+    """Monta um bubblewrap que expõe apenas os arquivos permitidos."""
     command_with_limits = f"ulimit -u 64 -v 2097152 -f 20480; {comando}"
+    file_bindings = [
+        argument
+        for allowed_file in allowed_files
+        for argument in ("--bind", str(allowed_file), f"/workspace/{allowed_file.name}")
+    ]
     command = [
         "bwrap",
         "--ro-bind", "/usr", "/usr",
@@ -34,7 +43,7 @@ def _command_for_file(comando: str, allowed_file: Path) -> list[str]:
         "--ro-bind", "/usr/local", "/usr/local",
         "--dir", "/workspace",
         "--chmod", "0555", "/workspace",
-        "--bind", str(allowed_file), f"/workspace/{allowed_file.name}",
+        *file_bindings,
         "--chdir", "/workspace",
         "--unshare-all",
         "--die-with-parent",
@@ -52,17 +61,28 @@ def _command_for_file(comando: str, allowed_file: Path) -> list[str]:
     return command
 
 
-def restricted_file_tool(filename: str, formatter: Callable[[str | Path], str | None] | None = None,) -> BaseTool:
-    """Cria uma ferramenta com acesso exclusivo a um arquivo do sandbox.
+def restricted_file_tool(
+    filename: str | Sequence[str],
+    formatter: Callable[[str | Path], str | None] | None = None,
+) -> BaseTool:
+    """Cria uma ferramenta com acesso exclusivo a arquivos do sandbox.
 
-    O arquivo permitido pode ser lido e alterado, mas não excluído. O diretório
+    Os arquivos permitidos podem ser lidos e alterados, mas não excluídos. O diretório
     virtual exposto ao processo não permite criar outros arquivos e não contém
     nenhum dos demais arquivos reais do sandbox.
     """
-    safe_filename = Path(filename).name
-    if safe_filename != filename or safe_filename in {"", ".", ".."}:
-        raise ValueError("filename deve ser somente o nome de um arquivo")
-    tool_name = f"execute_{re.sub(r'[^a-zA-Z0-9_]+', '_', safe_filename.removesuffix('.json').removesuffix('.md'))}_restricted"
+    filenames = [filename] if isinstance(filename, str) else list(filename)
+    if not filenames:
+        raise ValueError("informe pelo menos um arquivo permitido")
+    if len(set(filenames)) != len(filenames):
+        raise ValueError("os nomes dos arquivos permitidos não podem se repetir")
+    for candidate in filenames:
+        safe_candidate = Path(candidate).name
+        if safe_candidate != candidate or safe_candidate in {"", ".", ".."}:
+            raise ValueError("cada filename deve ser somente o nome de um arquivo")
+
+    primary_filename = filenames[0]
+    tool_name = f"execute_{re.sub(r'[^a-zA-Z0-9_]+', '_', primary_filename.removesuffix('.json').removesuffix('.md'))}_restricted"
 
     async def execute_restricted_file(comando: str, config: RunnableConfig) -> str:
         if not isinstance(comando, str) or not comando.strip():
@@ -70,38 +90,46 @@ def restricted_file_tool(filename: str, formatter: Callable[[str | Path], str | 
 
         try:
             sandbox_dir = Path(await _extrai_sandbox_dir(config))
-            allowed_file = sandbox_dir / safe_filename
-            if allowed_file.is_symlink() or (allowed_file.exists() and not allowed_file.is_file()):
-                return _result(
-                    stderr=f"{safe_filename} precisa ser um arquivo regular".encode(),
-                    returncode=-1,
-                )
-            allowed_file.touch(exist_ok=True)
-            command = _command_for_file(comando, allowed_file)
+            allowed_files = [sandbox_dir / allowed_filename for allowed_filename in filenames]
+            for allowed_file in allowed_files:
+                if allowed_file.is_symlink() or (allowed_file.exists() and not allowed_file.is_file()):
+                    return _result(
+                        stderr=f"{allowed_file.name} precisa ser um arquivo regular".encode(),
+                        returncode=-1,
+                    )
+                allowed_file.touch(exist_ok=True)
+            command = _command_for_files(comando, allowed_files)
             process = await asyncio.create_subprocess_exec(
                 *command,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
             try:
-                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=120)
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(),
+                    timeout=COMMAND_TIMEOUT_SECONDS,
+                )
             except asyncio.TimeoutError:
                 process.kill()
                 await process.communicate()
-                return _result(stderr=b"Comando excedeu o tempo limite (120s)", returncode=-1)
+                return _result(
+                    stderr=f"Comando excedeu o tempo limite ({COMMAND_TIMEOUT_SECONDS}s)".encode(),
+                    returncode=-1,
+                )
 
             if formatter:
                 warning = formatter(sandbox_dir)
                 if warning:
-                    stderr += f"\nNão foi possível formatar {safe_filename}: {warning}".encode()
+                    stderr += f"\nNão foi possível formatar {primary_filename}: {warning}".encode()
             return _result(stdout, stderr, process.returncode)
         except (OSError, ValueError, RuntimeError) as exc:
             return _result(stderr=str(exc).encode(), returncode=-1)
 
+    allowed_names = " e ".join(filenames)
     return tool(
         tool_name,
         description=(
-            f"Lê e escreve somente {safe_filename}. "
-            f"Não exclua {safe_filename}, não crie outros arquivos e não acesse outros arquivos do sandbox."
+            f"Lê e escreve somente {allowed_names}. "
+            "Não exclua esses arquivos, não crie outros arquivos e não acesse outros arquivos do sandbox."
         ),
     )(execute_restricted_file)
