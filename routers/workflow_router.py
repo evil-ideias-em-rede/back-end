@@ -62,6 +62,10 @@ class WorkflowMessageIn(BaseModel):
     text: str = Field(min_length=1, max_length=20000)
     agent_name: AgentName
     hidden: bool = False
+    # Contexto de visualização, sem confirmar ou alterar a fonte da sessão.
+    viewed_audience_id: str | None = Field(
+        default=None, min_length=1, max_length=32, pattern=r"^[0-9]+$",
+    )
 
 
 class WorkflowAdvanceIn(BaseModel):
@@ -348,7 +352,20 @@ def _workflow_state(
     editor_mode: bool = False,
     user_edited: bool = False,
     teacher_context: str | None = None,
+    viewed_audience_id: str | None = None,
 ) -> dict:
+    if agent_name == "brainstorm":
+        viewing_context = (
+            f"A audiência aberta na tela no momento desta pergunta é a de ID {viewed_audience_id}. "
+            "Considere-a como referência para a pergunta e consulte seu conteúdo por ID quando necessário. "
+            "Visualizar uma audiência não confirma sua escolha como fonte nem solicita gerar material."
+            if viewed_audience_id is not None else
+            "Nenhuma audiência em visualização foi informada nesta pergunta. "
+            "Não presuma que uma seleção mencionada no histórico continua aberta na tela."
+        )
+        # Metadado da interface anexado somente à execução atual, em nível de
+        # usuário. O histórico persistido mantém o texto original da pergunta.
+        text = f"Contexto de visualização: {viewing_context}\n\nPergunta do usuário:\n{text}"
     return {
         "messages": _history(session["messages"]) + [HumanMessage(content=text)],
         "chat_id": _workflow_chat_id(session_id),
@@ -516,7 +533,11 @@ async def _run_streamed_message(
         hidden=body.hidden,
     )
     teacher_context = await load_teacher_context(user.user_id if user else None, session_id)
-    state = _workflow_state(session, session_id, text, body.agent_name, teacher_context=teacher_context)
+    state = _workflow_state(
+        session, session_id, text, body.agent_name,
+        teacher_context=teacher_context,
+        viewed_audience_id=body.viewed_audience_id,
+    )
     try:
         graph_config = _graph_config(session_id, body.agent_name, user.user_id if user else None)
         await _extrai_sandbox_dir(graph_config)
@@ -896,6 +917,7 @@ async def _process_workflow_message(
         editor_mode=editor_mode,
         user_edited=getattr(body, "user_edited", False),
         teacher_context=await load_teacher_context(user.user_id if user else None, session_id),
+        viewed_audience_id=body.viewed_audience_id,
     )
 
     try:

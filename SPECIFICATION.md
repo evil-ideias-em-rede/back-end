@@ -205,11 +205,16 @@ Os diretórios são
 1. A interface identifica o tipo de material e cria/retoma a sessão.
 2. A conversa exploratória normalmente usa `brainstorm`.
 3. O agente consulta audiências e escreve sugestões em `planning.json`.
-4. Ao selecionar uma audiência, a interface chama
-   `POST /sessions/{session_id}/planning/select/{planning_id}` sob o prefixo
-   `/api/workflow`. O backend registra a escolha e salva `audiencia.json`.
-5. Selecionar um card não é, por si só, autorizar a criação do material.
-6. Ao clicar em **Usar essa audiência como fonte**, o fluxo verifica condições
+4. Clicar em um card apenas carrega a audiência e guarda a visualização na aba,
+   por sessão. Não envia mensagem ao agente nem bloqueia os outros cards.
+5. Cada pergunta explícita inclui `viewed_audience_id` com o ID aberto naquele
+   instante (ou `null` sem seleção). O backend fornece esse contexto ao brainstorm
+   somente nessa execução, preservando o texto original no histórico. Navegar
+   enquanto a resposta chega não altera o contexto da pergunta já enviada.
+6. Ao clicar em **Usar essa audiência como fonte**, a interface bloqueia a lista
+   até a resposta e chama `POST /sessions/{session_id}/planning/select/{planning_id}`
+   sob `/api/workflow`. O backend registra a fonte e salva `audiencia.json`.
+   Em seguida, o fluxo verifica condições
    de avanço e envia o pedido de geração ao agente final. `/advance` valida o
    planejamento e pode pedir complementação ao brainstorm; ele não representa
    uma conversa autônoma entre todos os especialistas.
@@ -404,7 +409,8 @@ a cada execução; arquivos e mensagens persistidos permitem continuar o trabalh
 1. O professor escolhe Plano de Aula e começa uma sessão para `lesson_plan`.
 2. Escreve o tema; a conversa inicial usa o brainstorm para buscar audiências.
 3. O brainstorm consulta fontes e salva sugestões em `planning.json`.
-4. A escolha de uma audiência faz o backend salvar a fonte em `audiencia.json`.
+4. O professor navega pelos cards sem acionar o agente; ao confirmar
+   **Usar essa audiência como fonte**, o backend salva a fonte em `audiencia.json`.
 5. O professor solicita usar a fonte; o frontend chama `lesson_plan` no endpoint
    de mensagens, ainda com `editor_mode=false`.
 6. O especialista usa histórico/contexto, lê referências pertinentes, template,

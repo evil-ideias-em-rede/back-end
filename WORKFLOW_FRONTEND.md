@@ -227,7 +227,16 @@ GET /api/workflow/sessions/{session_id}/planning.json
 
 O frontend deve exibir as ideias e permitir que o professor selecione uma delas.
 
-### Selecionar uma ideia/audiência
+### Visualizar e confirmar uma ideia/audiência
+
+Clicar no card apenas carrega seus detalhes, sem enviar mensagens ao agente.
+A audiência visualizada fica guardada por sessão na aba (`sessionStorage`).
+Cada pergunta explícita envia `viewed_audience_id` (ID numérico como string,
+ou `null` sem seleção) junto de `text` e `agent_name`. Esse contexto não altera
+a fonte confirmada nem o texto da pergunta salvo no histórico.
+
+Somente **Usar essa audiência como fonte** chama o endpoint abaixo. A lista
+fica bloqueada durante a confirmação/geração, até a resposta ou falha:
 
 ```http
 POST /api/workflow/sessions/{session_id}/planning/select/{planning_id}
@@ -238,20 +247,21 @@ Resposta resumida:
 ```json
 {
   "session_id": "00b27caa-c72e-4ae7-b20e-f93307bb4ece",
-  "selected_id": "aud-001",
+  "selected_id": "158",
   "selected_index": 0,
   "changed": true,
   "audiencia": {
-    "id": "aud-001",
+    "id": "158",
     "titulo": "Audiência pública"
   },
   "planning": []
 }
 ```
 
-Depois dessa resposta, o frontend deve atualizar a lista, mostrar a audiência selecionada e aguardar a resposta do brainstorm antes de liberar o avanço.
-
-> No protótipo atual, o frontend usa a audiência mock `aud-001`. Quando houver audiência real, o valor enviado no path deve ser substituído pelo id correspondente à opção escolhida.
+Depois dessa resposta, o frontend continua a validação e o pedido de geração.
+Só avança ao editor após a resposta do agente e a confirmação de HTML disponível.
+Se faltar informação ou ocorrer uma falha, permanece na tela e libera os cards.
+Perguntas comuns no chat não bloqueiam a navegação entre audiências.
 
 ## 6. Avançar para o agente final
 
