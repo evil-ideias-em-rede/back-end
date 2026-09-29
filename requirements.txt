@@ -6,8 +6,8 @@ langchain-openai==1.1.10
 langchain-community==0.4.1
 sqlite-vec==0.1.9
 tiktoken==0.14.0
-langgraph
-langgraph-prebuilt
+langgraph==1.2.12
+langgraph-prebuilt==1.1.0
 microsandbox==0.7.2; sys_platform == "linux"
 openai==2.21.0
 PyJWT==2.10.1

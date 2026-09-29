@@ -37,6 +37,13 @@ para materiais em retrato:
 python3 html_pdf_tools.py HTML.html HTML.validacao.pdf --orientation V
 ```
 
+O conversor agora mede as páginas no Chromium antes da exportação. Conteúdo
+rolável, cortado ou maior que A4, marcadores duplicados/aninhados e conteúdo
+fora das páginas causam erro. Redistribua os blocos em novas folhas; não
+esconda o excesso. O conversor também verifica a correspondência entre a
+quantidade de marcadores e de folhas do PDF. Documentos antigos sem marcadores
+ainda podem ser exportados, mas documentos novos devem sempre delimitá-los.
+
 4. Converta o PDF em imagens, uma imagem por página:
 
 ```bash

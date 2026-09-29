@@ -133,6 +133,15 @@ def render(prompt_id: str, values: dict | None = None, *, drop_missing: bool = T
     return filled.strip()
 
 
+def render_for_agent(prompt_id: str) -> str:
+    """Adapta a biblioteca ao chat: rules.py define a entrega em arquivo HTML.
+
+    Os contratos XML permanecem disponíveis via render() para pipelines
+    estruturados, mas não são pedidos como resposta final no chat.
+    """
+    return re.sub(r"<output_format>.*?</output_format>", "", render(prompt_id), flags=re.S).strip()
+
+
 def inputs(prompt_id: str) -> list[str]:
     return list(_parse(prompt_id)["inputs"])
 

@@ -1,4 +1,5 @@
-from ..loader import render
+from ..loader import render_for_agent
+from ..material_rules import material_rules
 from .rules import (
     ACERVO_PEDAGOGICO,
     LEITURA_DO_PLANEJAMENTO,
@@ -9,7 +10,9 @@ from .rules import (
 
 
 ROTEIRO_DEBATE_PROMPT = f"""
-{render("21-roteiro-de-debate")}
+{render_for_agent("21-roteiro-de-debate")}
+
+{material_rules("debate")}
 
 {ACERVO_PEDAGOGICO}
 

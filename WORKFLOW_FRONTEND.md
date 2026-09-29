@@ -216,7 +216,10 @@ Erro:
 
 ## 5. Artefato do brainstorm
 
-O brainstorm normalmente produz `planning.json`.
+O brainstorm pode produzir somente `planning.json`: ele explora audiências e
+recortes, mas nunca gera ou altera `HTML.html`, mesmo diante de um pedido direto.
+A interface deve encaminhar a criação ao agente final após a escolha da fonte.
+O HTML existente, se houver, pertence ao especialista/editor e deve ser preservado.
 
 ```http
 GET /api/workflow/sessions/{session_id}/planning.json

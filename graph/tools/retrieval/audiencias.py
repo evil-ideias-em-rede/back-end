@@ -5,9 +5,12 @@ em ``audiencias``. A saída mantém as mesmas chaves consumidas pelo frontend
 antigo, mas os dados vêm do dataset real de audiências públicas.
 """
 
+import csv
+import gzip
 import json
 import re
 import sqlite3
+import sys
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
@@ -19,6 +22,9 @@ BASE_DIR = Path(__file__).resolve().parent
 INDICE_PADRAO = BASE_DIR / "indice" / "indice_busca.sqlite"
 PUBLIC_HEARING_LDS = BASE_DIR / "public_hearing" / "PublicHearingBR_LDS.jsonl"
 PUBLIC_HEARING_ANOTADOS_DIR = BASE_DIR / "dados_camara" / "resultados_mimo_corpus"
+PUBLIC_HEARING_ANOTADOS_CSV = (
+    PUBLIC_HEARING_ANOTADOS_DIR / "resultados_mimo_corpus.csv.gz"
+)
 
 
 @lru_cache(maxsize=1)
@@ -37,6 +43,29 @@ def _carregar_audiencias_lds() -> dict[str, dict]:
 def _carregar_audiencias_anotadas() -> dict[str, dict]:
     """Carrega as falas anotadas do MIMO pelo mesmo ID da audiência."""
     audiencias = {}
+    if PUBLIC_HEARING_ANOTADOS_CSV.is_file():
+        limite_csv_anterior = csv.field_size_limit()
+        try:
+            csv.field_size_limit(sys.maxsize)
+            with gzip.open(
+                PUBLIC_HEARING_ANOTADOS_CSV,
+                mode="rt",
+                encoding="utf-8",
+                newline="",
+            ) as arquivo:
+                for linha in csv.DictReader(arquivo):
+                    # As linhas de produção vêm antes das cópias completas de
+                    # auditoria. Não descompacte centenas de MB sem necessidade.
+                    if linha["categoria"] != "anotado":
+                        break
+                    registro = json.loads(linha["conteudo_json"])
+                    if registro.get("debate_id") is not None:
+                        audiencias[str(registro["debate_id"])] = registro
+        finally:
+            csv.field_size_limit(limite_csv_anterior)
+        return audiencias
+
+    # Compatibilidade temporária com checkouts anteriores à consolidação.
     if not PUBLIC_HEARING_ANOTADOS_DIR.is_dir():
         return audiencias
     for caminho in PUBLIC_HEARING_ANOTADOS_DIR.glob("*_anotado.json"):

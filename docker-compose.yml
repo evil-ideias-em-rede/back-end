@@ -46,6 +46,7 @@ services:
     build:
       context: ../front-end
       dockerfile: Dockerfile
+      target: development
     environment:
       # Esta URL é usada pelo navegador, portanto aponta para a porta
       # publicada no host e não para o nome interno do serviço Docker.

@@ -82,7 +82,7 @@ async def update_user_profile(conn, user_id, email, name, picture_url):
     return await conn.fetchrow(
         """
         UPDATE users
-        SET email=$2, name=$3, picture_url=$4, updated_at=NOW()
+        SET email=COALESCE($2, email), name=$3, picture_url=$4, updated_at=NOW()
         WHERE id=$1
         RETURNING id, google_id, email, name, picture_url
         """,
@@ -243,7 +243,7 @@ async def get_workflow_sessions(conn, user_id):
             ) AS last_message
         FROM workflow_sessions s
         LEFT JOIN workflow_messages m ON m.session_id = s.id
-        WHERE s.user_id = $1
+        WHERE s.user_id = $1 AND s.owner_user_id IS NULL
         GROUP BY s.id, s.selected_agent, s.current_stage, s.created_at, s.updated_at
         ORDER BY COALESCE(MAX(m.created_at), s.created_at) DESC
         """,

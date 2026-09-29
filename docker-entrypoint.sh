@@ -7,8 +7,6 @@ set -euo pipefail
 APP_UID="${BACKEND_UID:-1000}"
 APP_GID="${BACKEND_GID:-1000}"
 INDEX_DIR="/app/graph/tools/retrieval/indice"
-INDEX_FILE="${INDEX_DIR}/indice_busca.sqlite"
-INDEX_DRIVE_FOLDER_URL="https://drive.google.com/drive/folders/16tgqKuWKXBBUwYrAJRKuU1pj38yKPAGs"
 MICROSANDBOX_DIR="${MSB_HOME:-/app/microsandbox}"
 
 # O container inicia como root, mas o servidor é reduzido para APP_UID.
@@ -19,15 +17,12 @@ mkdir -p /app/workdirs
 mkdir -p "${INDEX_DIR}"
 mkdir -p "${MICROSANDBOX_DIR}"
 
-if [[ ! -f "${INDEX_FILE}" ]]; then
-  echo "indice_busca.sqlite ausente; baixando o indice do Google Drive..."
-  gdown "${INDEX_DRIVE_FOLDER_URL}" --output "${INDEX_DIR}"
-
-  if [[ ! -f "${INDEX_FILE}" ]]; then
-    echo "Erro: o download terminou sem criar ${INDEX_FILE}." >&2
-    exit 1
-  fi
+python -m services.install_config
+if [[ ! -c /dev/kvm ]]; then
+  echo "Erro: /dev/kvm indisponível. Este backend requer Linux com KVM funcional." >&2
+  exit 1
 fi
+python -m services.install_index
 
 chown "${APP_UID}:${APP_GID}" /app/workdirs
 chown -R "${APP_UID}:${APP_GID}" "${INDEX_DIR}"

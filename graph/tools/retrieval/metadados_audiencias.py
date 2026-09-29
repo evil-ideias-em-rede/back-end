@@ -31,14 +31,20 @@ from collections import Counter
 from pathlib import Path
 
 from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI
+
+# Permite executar este utilitário diretamente, além de importá-lo pelo app.
+if __package__ in {None, ""}:
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+
+from services.llm import create_structured_model
 from pydantic import BaseModel, Field
 
 from fts_index import INDICE_PADRAO, PUBLIC_HEARING_LDS
 
-load_dotenv(override=True)
+load_dotenv(override=False)
 
-MODELO_PADRAO = os.getenv("OPENAI_MODEL_NAME", "gpt-5.6-luna")
+MODELO_PADRAO = None  # Resolvido pelo provedor selecionado na hora da chamada.
 TAMANHO_LOTE_CLASSIFICACAO = 25
 N_KEYWORDS = 8
 
@@ -199,13 +205,13 @@ def _prompt_sistema_classificacao() -> str:
 
 
 def _classificar_tags_lote(
-    itens: list[dict], modelo: str = MODELO_PADRAO
+    itens: list[dict], modelo: str | None = MODELO_PADRAO
 ) -> dict[str, str]:
     """`itens`: [{"ref_id": ..., "assunto": ...}, ...]. Retorna {ref_id: tag},
     com fallback pra 'outros' se o LLM devolver ref_id não pedido ou tag
     fora da taxonomia — nunca deixamos uma tag inválida entrar no banco."""
     linhas = "\n".join(f"- ref_id={item['ref_id']}: {item['assunto']}" for item in itens)
-    cliente = ChatOpenAI(model=modelo, temperature=0).with_structured_output(_ClassificacaoLote)
+    cliente = create_structured_model(_ClassificacaoLote, model=modelo)
     resposta: _ClassificacaoLote = cliente.invoke(
         [("system", _prompt_sistema_classificacao()), ("user", linhas)]
     )
@@ -232,7 +238,7 @@ def _lotes(sequencia: list, tamanho: int):
 def popular_metadados_audiencias(
     conexao: sqlite3.Connection,
     caminho_jsonl: Path = PUBLIC_HEARING_LDS,
-    modelo: str = MODELO_PADRAO,
+    modelo: str | None = MODELO_PADRAO,
 ) -> int:
     garantir_schema_metadados(conexao)
     audiencias = _carregar_audiencias_lds(caminho_jsonl)

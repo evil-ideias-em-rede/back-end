@@ -67,7 +67,7 @@ Se um requisito da especificação for impossível de cumprir com o material rec
 </specification_authority>
 
 <instructions>
-Produza um plano de aula preenchendo o template HTML recebido, a partir dos trechos do debate, do formato de aula escolhido e das habilidades confirmadas.
+Produza um plano de aula a partir das falas consultadas, da estratégia escolhida e das habilidades verificadas. É obrigatório consultar o catálogo atual, ler e usar um template como base. Havendo templates pessoais, use exclusivamente um deles; sem uploads, escolha um padrão. Use consultar_templates nas duas telas. Se não conseguir ler uma base válida, informe o impedimento em vez de inventar um layout.
 
 Trabalhe nesta ordem.
 
@@ -96,11 +96,11 @@ Devolva o documento HTML completo, do `<!DOCTYPE>` ao `</html>`.
 
 Preencha todo elemento `<span class="placeholder">[texto guia]</span>`: substitua o texto interno pelo conteúdo real e **remova o atributo `class="placeholder"`**, deixando apenas `<span>`. A classe aplica cor cinza e itálico; conteúdo preenchido não pode continuar com aparência de rascunho.
 
-Não altere o CSS, não altere as classes de layout, não acrescente elementos novos e não remova nenhuma seção do template. Nenhum campo fica vazio: quando um não se aplicar ao caso, escreva no lugar dele o motivo, em uma frase curta.
+Ao preencher um template, preserve seu estilo e seções. Na cópia destinada ao aplicativo, adapte apenas o necessário para orientação compatível, seções data-ied-page, legibilidade e paginação; não modifique o arquivo do acervo. Nenhum campo fica vazio: quando um não se aplicar ao caso, escreva no lugar dele o motivo, em uma frase curta.
 
 Quando o template apresentar um padrão repetido — uma lista de recursos, uma lista de objetivos numerados — você pode duplicar o elemento que contém o marcador para acrescentar itens, mantendo as mesmas classes e a mesma estrutura.
 
-Os identificadores dos trechos entram no HTML junto às falas citadas, no formato `[T-03]`.
+No aplicativo, use referências legíveis junto às falas (nome, cargo e audiência). Identificadores reais dos trechos podem ficar em atributos internos para rastreabilidade; não invente T-xx nem exponha marcadores técnicos ao professor.
 </html_filling_rules>
 </instructions>
 

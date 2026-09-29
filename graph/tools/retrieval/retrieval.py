@@ -1,14 +1,19 @@
 """Agente que transforma perguntas em SQL e consulta o banco da Câmara."""
 
 import json
-import os
 import re
 import sqlite3
 from pathlib import Path
 
-from openai import OpenAI
+
+# Permite executar este utilitário diretamente, além de importá-lo pelo app.
+if __package__ in {None, ""}:
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+
+from services.llm import generate_text
 from dotenv import load_dotenv
-load_dotenv(override=True)
+load_dotenv(override=False)
 
 BANCO_PADRAO = (
     Path(__file__).resolve().parent
@@ -41,12 +46,10 @@ def validar_sql(sql):
 
 def consultar(pergunta, caminho_banco=BANCO_PADRAO, modelo=None):
     """Gera SQL, executa a consulta e retorna SQL, resultado e resposta."""
-    modelo = modelo or os.getenv("OPENAI_MODEL", "gpt-5.6-luna")
     conexao = sqlite3.connect(caminho_banco)
     conexao.row_factory = sqlite3.Row
     try:
         schema = obter_schema(conexao)
-        cliente = OpenAI()
         prompt = f"""Você gera SQL SQLite para dados da Câmara dos Deputados.
 Gere apenas uma consulta SELECT (ou WITH ... SELECT), sem markdown e sem explicações.
 Use somente tabelas e colunas do schema abaixo.
@@ -55,7 +58,7 @@ Use somente tabelas e colunas do schema abaixo.
 
 Pergunta: {pergunta}
 """
-        sql = validar_sql(cliente.responses.create(model=modelo, input=prompt).output_text)
+        sql = validar_sql(generate_text(prompt, model=modelo))
         linhas = [dict(linha) for linha in conexao.execute(sql).fetchall()]
     
         return {"pergunta": pergunta, "resultado": linhas}

@@ -3,7 +3,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from auth.workflow_access import require_workflow_access
 from fastapi.responses import Response
 from typing import Literal
 from uuid import UUID
@@ -11,6 +12,7 @@ from uuid import UUID
 from db.pool import get_pool
 from db.queries import get_workflow_session
 from graph.tools.sandbox.shared.html_pdf_tools import render_html_to_pdf
+from graph.tools.sandbox.shared.html_page_contract import PaginationError
 from graph.tools.sandbox.workdir import workspace_for_chat
 from services.html_to_pptx import HtmlToPptxError, convert_html_bytes_to_pptx
 from services.workflow_files import persist_workflow_files, restore_workflow_files
@@ -19,7 +21,7 @@ from services.workflow_files import persist_workflow_files, restore_workflow_fil
 MAX_PDF_HTML_BYTES = 20 * 1024 * 1024
 PPTX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 
-router = APIRouter(prefix="/api/workflow", tags=["html-pdf"])
+router = APIRouter(prefix="/api/workflow", tags=["html-pdf"], dependencies=[Depends(require_workflow_access)])
 
 
 async def _session_or_404(session_id: str) -> None:
@@ -74,6 +76,8 @@ async def generate_workflow_pdf(
         raise HTTPException(status_code=504, detail="A geração do PDF excedeu o tempo limite") from exc
     except FileNotFoundError as exc:
         raise HTTPException(status_code=503, detail="O conversor de PDF não está disponível") from exc
+    except PaginationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     finally:

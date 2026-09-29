@@ -47,3 +47,32 @@ Cada `*_prompt.py` monta o prompt final a partir de três partes: o texto da lib
 ## Prompts sem node
 
 `10`, `11`, `12`, `13`, `14`, `15`, `17`, `19` e as quatro verificações `30`–`33` estão na library e ainda não têm node. Ficam disponíveis para quando as etapas forem implementadas; `contratos.md`, no sandbox, descreve o encadeamento previsto.
+
+## Contrato do aplicativo
+
+Os wrappers usam `render_for_agent()`: resolve a biblioteca como `render()`,
+mas omite `<output_format>`, cujos contratos XML são de pipelines estruturados.
+As regras operacionais determinam a entrega em `HTML.html` e resposta em prosa.
+`render()` continua disponível para consumidores do contrato estruturado.
+
+`material_rules.py` define os perfis de plano, debate, redação, letramento,
+slides, criação livre e editor geral. No editor, `build_editor_prompt()` combina
+o perfil com o prompt 16 e o mapa do acervo. `base.py` acrescenta EDIT_RULES.
+
+Audiências sugeridas só expõe planning.json e HTML.html na ferramenta restrita.
+A BNCC e as fontes vêm das ferramentas de consulta; o brainstorm também recebe
+consultar_bncc para continuar pedidos de geração após o professor complementar dados.
+
+No editor, o guia ativo é `shared/geral/guia_edicao.md`, copiado à raiz do
+sandbox. Templates de plano, formatos e teorias são consultados sob demanda.
+Slides seguem A4 paisagem; os demais tipos seguem retrato, conforme o frontend.
+O guia não depende das cópias antigas de geracao_html_a4.md nem de prompts/ no
+sandbox. Os arquivos antigos não foram removidos ou migrados por esta revisão.
+
+A cópia do acervo só preenche arquivos ausentes: um guia novo chega também a
+sessões existentes na próxima ferramenta; alterações em arquivos já copiados
+não substituem as versões da sessão. As regras atuais do agente e o guia novo
+explicam que o pipeline numerado de contratos antigos não é executado.
+
+Validação local, sem LLM:
+`PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest discover -s tests -v`.

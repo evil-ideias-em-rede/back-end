@@ -28,13 +28,13 @@ Uma folha A4 tem 210mm × 297mm. Não precisa converter para pixels: navegadores
 body {
   background: #e8e8e8; /* área cinza ao redor, para a folha branca se destacar */
   margin: 0;
-  padding: 32px 16px;
+  padding: 0;
 }
 
 .pagina {
   width: var(--largura-folha);
   min-height: var(--altura-folha);
-  margin: 0 auto 24px;
+  margin: 0;
   padding: 20mm 22mm; /* margens de um ofício típico */
   background: #fff;
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.18); /* sombra sutil = "papel sobre a mesa" */
@@ -142,7 +142,7 @@ Use (A) por padrão — é o caminho mais comum, funciona em qualquer artifact H
 
 ## Passo 4 — Sumário com âncoras (opcional, para documentos longos)
 
-Como não há abas, a forma de navegar num documento com várias seções (independente de ter uma ou várias `data-ied-page`) é um pequeno sumário no topo do documento — antes da primeira `<section data-ied-page>` — com links âncora apontando para os IDs das seções:
+Como não há abas, a forma de navegar num documento com várias seções (independente de ter uma ou várias `data-ied-page`) é um pequeno sumário no topo do documento — dentro da primeira `<section data-ied-page>` — com links âncora apontando para os IDs das seções:
 
 ```html
 <style>
@@ -237,7 +237,7 @@ Tabelas de materiais seguem a mesma lógica: um `<table>` comum dentro da `.seca
   body {
     background: #e8e8e8;
     margin: 0;
-    padding: 32px 16px;
+    padding: 0;
     font-family: Georgia, 'Times New Roman', serif;
     color: #1a1a1a;
   }
@@ -250,8 +250,8 @@ Tabelas de materiais seguem a mesma lógica: um `<table>` comum dentro da `.seca
   .sumario a:hover { text-decoration: underline; }
   .pagina {
     width: 210mm;
-    min-height: 297mm;
-    margin: 0 auto 24px;
+    height: 297mm;
+    margin: 0;
     padding: 20mm 22mm;
     background: #fff;
     box-shadow: 0 4px 18px rgba(0,0,0,0.18);
@@ -278,13 +278,12 @@ Tabelas de materiais seguem a mesma lógica: um `<table>` comum dentro da `.seca
 </head>
 <body>
 
-  <nav class="sumario">
+  <section class="pagina" data-ied-page="1">
+    <nav class="sumario">
     <a href="#secao-abertura">Abertura de processos</a>
     <a href="#secao-tramite">Trâmite</a>
     <a href="#secao-fontes">Fontes</a>
   </nav>
-
-  <section class="pagina" data-ied-page="1">
     <div class="secao" id="secao-titulo" data-titulo="Título" onclick="selecionar(this)">
       <h1>INFORMAÇÕES SOBRE O ASSUNTO X</h1>
     </div>
@@ -319,7 +318,7 @@ Tabelas de materiais seguem a mesma lógica: um `<table>` comum dentro da `.seca
 </html>
 ```
 
-Note que o sumário fica fora das `.pagina` — ele é um recurso de navegação do documento inteiro, não pertence a uma folha específica, então não faz sentido morar dentro de `data-ied-page="1"`.
+O sumário pertence à primeira página. Todo conteúdo visível deve ficar dentro de uma seção data-ied-page; a interface controla a navegação entre folhas.
 
 ## Depois que o usuário responder
 

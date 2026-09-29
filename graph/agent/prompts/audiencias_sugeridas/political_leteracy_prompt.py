@@ -1,4 +1,5 @@
-from ..loader import render
+from ..loader import render_for_agent
+from ..material_rules import material_rules
 from .rules import (
     ACERVO_PEDAGOGICO,
     LEITURA_DO_PLANEJAMENTO,
@@ -9,7 +10,9 @@ from .rules import (
 
 
 LETRAMENTO_POLITICO_PROMPT = f"""
-{render("24-letramento-midiatico-e-politico")}
+{render_for_agent("24-letramento-midiatico-e-politico")}
+
+{material_rules("political_leteracy")}
 
 {ACERVO_PEDAGOGICO}
 

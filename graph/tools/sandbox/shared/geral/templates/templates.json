@@ -1,10 +1,10 @@
 {
-  "contrato_preenchimento": "Cada campo preenchível é <span class=\"placeholder\">[texto guia]</span>. Substituir o texto interno e remover o atributo class, deixando <span>. Não alterar CSS, classes de layout nem estrutura.",
+  "contrato_preenchimento": "Cada campo preenchível é <span class=\"placeholder\">[texto guia]</span>. Substituir o texto interno e remover a classe placeholder. Preserve identidade visual e seções úteis; adapte apenas a cópia em HTML.html ao tipo de material, orientação e delimitadores data-ied-page. Não altere o template original. Estes padrões só estão disponíveis quando o professor não cadastrou templates pessoais.",
   "templates": [
     {
       "arquivo": "plano-de-aula-matricial.html",
       "nome": "Matricial",
-      "quando_usar": "Objetivos, conteúdos conceituais, procedimentais e atitudinais, metodologia, recursos e avaliação em colunas. A4 paisagem.",
+      "quando_usar": "Comparar alinhamento entre objetivos, conteúdos, metodologia e avaliação em uma matriz.",
       "campos": [
         "objetivos",
         "conteudos_conceituais",
@@ -14,12 +14,13 @@
         "recursos",
         "avaliacao",
         "referencias"
-      ]
+      ],
+      "adaptacao_e_cuidados": "Original paisagem: adapte planos a retrato legível. Para instruções extensas, prefira blocos ou distribua a matriz em páginas."
     },
     {
       "arquivo": "plano-de-aula-blocos.html",
       "nome": "Blocos simples",
-      "quando_usar": "O mais enxuto. Foco e objetivos, materiais, objetivos de aprendizagem, estrutura da atividade e avaliação.",
+      "quando_usar": "Uma aula/atividade com roteiro direto, objetivos, recursos e avaliação.",
       "campos": [
         "serie",
         "disciplina",
@@ -31,12 +32,13 @@
         "objetivos_aprendizagem",
         "estrutura_atividade",
         "avaliacao"
-      ]
+      ],
+      "adaptacao_e_cuidados": "Boa base enxuta para atividade, roteiro ou oficina; acrescente BNCC verificada, fontes e apoios pertinentes sem burocratizar."
     },
     {
       "arquivo": "plano-de-aula-sequencia-didatica.html",
       "nome": "Sequência didática",
-      "quando_usar": "Único com campo próprio para o código da habilidade da BNCC e pergunta norteadora. Traz autoavaliação docente.",
+      "quando_usar": "Percurso em etapas/encontros com pergunta norteadora, habilidades e reflexão docente.",
       "campos": [
         "docente",
         "componente",
@@ -52,12 +54,13 @@
         "recurso_digital",
         "autoavaliacao",
         "links"
-      ]
+      ],
+      "adaptacao_e_cuidados": "Diferencie etapas e tempos; verifique BNCC e recursos digitais. Não invente códigos ou tecnologia para preencher campos."
     },
     {
       "arquivo": "plano-de-aula-institucional.html",
       "nome": "Institucional formal",
-      "quando_usar": "Único com bibliografia básica e complementar. Objetivo geral separado dos específicos.",
+      "quando_usar": "Planejamento formal exigido pela escola, com identificação, objetivos e bibliografia.",
       "campos": [
         "curso",
         "componente",
@@ -72,12 +75,13 @@
         "avaliacao",
         "bibliografia_basica",
         "bibliografia_complementar"
-      ]
+      ],
+      "adaptacao_e_cuidados": "Use referências reais. Adapte linguagem e separe notas docentes quando o produto for destinado ao estudante."
     },
     {
       "arquivo": "plano-de-aula-visual.html",
       "nome": "Visual",
-      "quando_usar": "Colorido, com metodologia distribuída em tempos. Bom para material que circula com a turma.",
+      "quando_usar": "Condução visual com metodologia distribuída no tempo e leitura rápida.",
       "campos": [
         "escola_tema",
         "nivel",
@@ -87,7 +91,26 @@
         "metodologia_tempos",
         "recursos",
         "avaliacao"
-      ]
+      ],
+      "adaptacao_e_cuidados": "Boa base para fichas ou slides adaptados; mantenha contraste, legibilidade, instruções claras e evidências de aprendizagem."
     }
-  ]
+  ],
+  "guia_consulta": "Leia guia_consulta.md e os índices de formatos e teorias com consultar_acervo. Template é a base do documento, não determina sozinho a metodologia.",
+  "selecao": [
+    "Padrões só estão disponíveis sem templates pessoais. Sempre consulte o catálogo autorizado com consultar_templates; nunca contorne uploads buscando um padrão.",
+    "Leia o HTML escolhido antes de gerar. Adapte a cópia, preservando identidade visual e seções úteis. Substitua placeholders e exemplos por conteúdo confirmado.",
+    "Escolha explícita do professor > vínculo com a turma > adequação ao produto. Esclareça ambiguidades relevantes. Leia conteúdo de apoio presente no template antes de usar.",
+    "Adapte roteiro, oficina, letramento, brainstorm ou slides ao produto solicitado; não force um formulário de plano em todos os materiais.",
+    "Plano e outros documentos: A4 retrato. Slides: A4 paisagem. Divida conteúdo em section data-ied-page; não corte texto nem crie scroll na folha."
+  ],
+  "excecao_slides": {
+    "agentes": [
+      "slides",
+      "slides_node"
+    ],
+    "arquivo": "slide-template.html",
+    "base_obrigatoria": true,
+    "disponivel_com_templates_pessoais": true,
+    "instrucao": "Sempre usar como base de apresentações. Uploads pessoais permanecem como apoio. Não disponibilizar este arquivo aos demais agentes."
+  }
 }

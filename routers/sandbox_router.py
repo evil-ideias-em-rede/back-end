@@ -3,7 +3,8 @@ import re
 import sqlite3
 from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from auth.workflow_access import require_workflow_access
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -21,7 +22,7 @@ MAX_HTML_BYTES = 20 * 1024 * 1024
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 SANDBOX_ID_PATTERN = re.compile(r"^[a-f0-9]{64}$")
 
-router = APIRouter(prefix="/api", tags=["sandbox"])
+router = APIRouter(prefix="/api", tags=["sandbox"], dependencies=[Depends(require_workflow_access)])
 
 
 def _sandbox_dir_from_id(sandbox_id: str) -> Path:

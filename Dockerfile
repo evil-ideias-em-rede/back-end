@@ -44,6 +44,11 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
+# O import das ferramentas de busca precisa do tokenizer mesmo sem rede.
+ENV TIKTOKEN_CACHE_DIR=/opt/tiktoken
+RUN python -c "import tiktoken; tiktoken.get_encoding('cl100k_base')"
+RUN chmod -R a+rX /opt/tiktoken
+
 COPY . .
 COPY --from=sandbox-archive /sandbox.tar /opt/contraponto-sandbox/sandbox.tar
 COPY --from=sandbox-archive /sandbox.sha256 /opt/contraponto-sandbox/sandbox.sha256

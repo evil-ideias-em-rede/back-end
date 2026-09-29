@@ -14,6 +14,10 @@ from .agent.writing_workshop_node import writing_workshop_node
 from .agent.slides_node import slides_node
 from .tools.sandbox.execute_bash import execute_bash
 from .tools.sandbox.suggested_files import execute_suggested_files
+from .tools.sandbox.brainstorm_files import execute_brainstorm_planning
+from .tools.sandbox.templates import consultar_templates
+from .tools.sandbox.acervo import consultar_acervo
+from .tools.sandbox.teacher_materials import consultar_materiais_professor
 from .tools.retrieval.audiencias import consultar_audiencia_por_id
 from .tools.retrieval.tool_buscar_audiencias import buscar_audiencias
 from .tools.retrieval.tool_consultar_audiencias_sql import consultar_audiencias_sql
@@ -71,6 +75,9 @@ graph.add_node(
     ToolNode([
         execute_bash,
         execute_suggested_files,
+        consultar_templates,
+        consultar_acervo,
+        consultar_materiais_professor,
         consultar_audiencia_por_id,
         buscar_audiencias,
         consultar_audiencias_sql,
@@ -78,7 +85,12 @@ graph.add_node(
         web_search,
     ]),
 )
-graph.add_node("editor_tools", ToolNode([execute_bash, web_search]))
+graph.add_node("editor_tools", ToolNode([execute_bash, web_search, consultar_templates, consultar_acervo, consultar_materiais_professor, consultar_bncc]))
+graph.add_node("brainstorm_tools", ToolNode([
+    execute_brainstorm_planning, consultar_audiencia_por_id, buscar_audiencias,
+    consultar_audiencias_sql, consultar_bncc, consultar_templates,
+    consultar_acervo, consultar_materiais_professor,
+]))
 graph.add_edge(START, "router")
 
 
@@ -90,6 +102,8 @@ def route_after_agent(state):
     last_message = state["messages"][-1]
     tool_calls = getattr(last_message, "tool_calls", None) or []
     if not tool_calls: return "end"
+    if state.get("selected_agent") == "brainstorm_node":
+        return "brainstorm_tools"
     return "editor_tools" if state.get("editor_mode") else "tools"
 
 
@@ -102,10 +116,11 @@ for node_name in AGENT_NODES:
     graph.add_conditional_edges(
         node_name,
         route_after_agent,
-        {"tools": "tools", "editor_tools": "editor_tools", "end": END},
+        {"tools": "tools", "editor_tools": "editor_tools", "brainstorm_tools": "brainstorm_tools", "end": END},
     )
 
 
+graph.add_conditional_edges("brainstorm_tools", route_to_agent, AGENT_NODES)
 graph.add_conditional_edges("tools", route_to_agent, AGENT_NODES)
 graph.add_conditional_edges("editor_tools", route_to_agent, AGENT_NODES)
 GRAPH_BUILDER = graph.compile()

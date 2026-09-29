@@ -1,11 +1,4 @@
-from ..loader import render
-from .rules import _NEUTRALITY_BLOCK, _SANDBOX_FLOW_EDIT
+from .rules import build_editor_prompt
 
 
-EDITOR_GENERIC_ACTIVITY_PROMPT = f"""
-{render("16-editor-no-documento")}
-
-{_NEUTRALITY_BLOCK}
-
-{_SANDBOX_FLOW_EDIT}
-""".strip()
+EDITOR_GENERIC_ACTIVITY_PROMPT = build_editor_prompt("generic")

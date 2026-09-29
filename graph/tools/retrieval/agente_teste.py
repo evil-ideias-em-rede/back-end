@@ -14,15 +14,22 @@ Uso:
 import asyncio
 import json
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import tool
-from langchain_openai import ChatOpenAI
+
+# Permite executar este utilitário diretamente, além de importá-lo pelo app.
+if __package__ in {None, ""}:
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+
+from services.llm import create_chat_model
 
 from embeddings_index import buscar_vetorial, conectar
 
-load_dotenv(override=True)
+load_dotenv(override=False)
 
 CONEXAO = conectar()
 
@@ -84,10 +91,11 @@ async def conversar() -> None:
         print("OPENAI_API_KEY não configurada.")
         return
 
-    llm = ChatOpenAI(
-        model=os.getenv("OPENAI_MODEL_NAME", "gpt-5.6-luna"),
-        use_responses_api=True,
-    ).bind_tools([buscar_audiencias])
+    try:
+        llm = create_chat_model().bind_tools([buscar_audiencias])
+    except ValueError as exc:
+        print(str(exc))
+        return
 
     mensagens = [SystemMessage(content=SYSTEM_PROMPT)]
 

@@ -6,6 +6,7 @@ import shutil
 from pathlib import Path
 from urllib.parse import quote
 from langchain_core.runnables import RunnableConfig
+from services.template_library import TemplateLibrary, default_template_library, load_template_library, sync_template_library, library_for_agent
 
 
 BASE_WORKDIRS = (Path(__file__).resolve().parent.parent.parent.parent / "workdirs").resolve()
@@ -93,21 +94,47 @@ def _copy_tree_if_missing(source_dir: Path, target_dir: Path, skip_names: set[st
         if not source.is_file() or source.name in skip_names:
             continue
         relative = source.relative_to(source_dir)
+        if relative.parts[0] == "templates":
+            continue  # Biblioteca sincronizada separadamente, conforme o professor.
         target = target_dir / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         if not target.exists():
             shutil.copy2(source, target)
 
 
-def _copy_shared_files(sandbox_dir: Path, agent_name: str | None = None) -> None:
+def _copy_shared_files(sandbox_dir: Path, agent_name: str | None = None, template_library: TemplateLibrary | None = None) -> None:
     """Prepara os arquivos comuns e os arquivos do agente no sandbox."""
+    if sandbox_dir.is_symlink():
+        raise ValueError("Diretório do sandbox não pode ser um link.")
     # O planejamento é um artefato exclusivo do brainstorm. Os nodes finais
     # removem o arquivo e não devem recriá-lo ao preparar suas ferramentas.
     skip_names = set()
     if _agent_key(agent_name) not in {"brainstorm", "brainstorm_node"}:
         skip_names.add("planning.json")
     _copy_flat_files(SHARED_FILES_DIR, sandbox_dir, skip_names=skip_names)
+    # Ferramentas da aplicação acompanham o exportador atual, inclusive em
+    # sessões antigas. Preserve HTML.html e planning.json; templates são referências gerenciadas.
+    for name in ("html_pdf_tools.py", "html_page_contract.py", "validar_html_pdf.md", "guia_edicao.md"):
+        source = SHARED_FILES_DIR / ("geral" if name == "guia_edicao.md" else "") / name
+        target = sandbox_dir / name
+        if source.is_file() and not target.is_symlink():
+            if not target.exists() or target.read_bytes() != source.read_bytes():
+                shutil.copy2(source, target)
     _copy_tree_if_missing(SHARED_FILES_DIR / "geral", sandbox_dir, skip_names=skip_names)
+    # Índices/guias pertencem à aplicação, não ao material editado pelo professor.
+    # Atualize sessões antigas sem seguir links criados dentro do sandbox.
+    for relative in ("guia_consulta.md", "contratos.md", "formatos-de-aula/_indice.md",
+                     "teorias/_indice.md", "dados/README.md"):
+        source = SHARED_FILES_DIR / "geral" / relative
+        target = sandbox_dir / relative
+        if any(parent.is_symlink() for parent in (target, *target.parents)):
+            raise ValueError("Referência do sandbox não pode ser um link.")
+        if target.exists() and (not target.is_file() or target.stat().st_nlink != 1):
+            raise ValueError("Referência precisa ser arquivo regular sem links.")
+        if source.is_file() and (not target.exists() or target.read_bytes() != source.read_bytes()):
+            shutil.copy2(source, target)
+    library = template_library if template_library is not None else default_template_library()
+    sync_template_library(sandbox_dir, library_for_agent(library, agent_name))
     if _agent_key(agent_name) in {"editor_geral", "general_editor_node"}:
         # O editor geral não possui etapa própria de geração, mas usa o mesmo
         # guia de edição A4 que os agentes especializados.
@@ -185,6 +212,7 @@ async def _extrai_work_dir(config: RunnableConfig) -> str:
 
 async def _extrai_sandbox_dir(config: RunnableConfig) -> str:
     """Retorna a área gravável pelo processo isolado da conversa."""
+    template_library = await load_template_library(config)
     work_dir = Path(await _extrai_work_dir(config))
     sandbox_dir = work_dir / "sandbox"
     sandbox_dir.mkdir(exist_ok=True)
@@ -194,7 +222,7 @@ async def _extrai_sandbox_dir(config: RunnableConfig) -> str:
     # diretório, sem conhecer a estrutura interna do projeto.
     configurable = config.get("configurable", {})
     agent_name = configurable.get("agent_name") or configurable.get("selected_agent")
-    _copy_shared_files(sandbox_dir, agent_name)
+    _copy_shared_files(sandbox_dir, agent_name, template_library)
 
     if os.name == "posix":
         app_uid, app_gid = os.geteuid(), os.getegid()

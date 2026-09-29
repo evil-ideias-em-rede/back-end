@@ -9,3 +9,11 @@ __pycache__/
 venv/
 # Dados de runtime montados pelo compose; nunca entram na imagem.
 workdirs/
+
+# Nenhuma credencial, backup ou índice da máquina entra no build.
+.env*
+backups/
+**/__pycache__/
+**/*.sqlite
+**/*.sqlite-*
+graph/tools/retrieval/indice/

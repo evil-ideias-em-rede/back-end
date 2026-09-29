@@ -30,6 +30,7 @@ from graph.main import GRAPH_BUILDER
 from graph.tools.sandbox.workdir import _extrai_sandbox_dir, remover_work_dir, workspace_for_chat, workspace_id_for_chat
 from graph.tools.retrieval.audiencias import carregar_audiencia_anotada, consultar_audiencia, listar_audiencias
 from services.workflow_files import persist_workflow_files, restore_workflow_files
+from services.teacher_context import load_teacher_context
 
 
 AgentName = Literal[
@@ -255,8 +256,6 @@ async def _ensure_session(session_id: str) -> dict:
 
 async def _ensure_session_access(session_id: str, user: CurrentUser | None) -> None:
     """Mantém o modo mock público e restringe sessões novas ao seu dono."""
-    if user is None:
-        return
     try:
         pool = get_pool()
     except RuntimeError as exc:
@@ -265,7 +264,12 @@ async def _ensure_session_access(session_id: str, user: CurrentUser | None) -> N
             detail="Banco de dados indisponível. Verifique DATABASE_URL no .env.",
         ) from exc
     async with pool.acquire() as conn:
-        row = await get_workflow_session_for_owner(conn, session_id, user.user_id)
+        row = (
+            await get_workflow_session_for_owner(conn, session_id, user.user_id)
+            if user else await fetch_workflow_session(conn, session_id)
+        )
+    if row is not None and user is None and row["owner_user_id"] is not None:
+        raise HTTPException(status_code=401, detail="Faça login para acessar esta sessão")
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sessão não encontrada")
 
@@ -317,8 +321,9 @@ def _has_non_blank_text(path: Path) -> bool:
         return False
 
 
-def _graph_config(session_id: str, agent_name: str | None = None) -> dict:
+def _graph_config(session_id: str, agent_name: str | None = None, teacher_user_id: str | None = None) -> dict:
     configurable = {
+        "teacher_user_id": teacher_user_id,
         "thread_id": _workflow_chat_id(session_id),
         "user_id": WORKFLOW_USER_ID_STR,
         "work_dir": str(_workflow_workspace(session_id)),
@@ -326,6 +331,9 @@ def _graph_config(session_id: str, agent_name: str | None = None) -> dict:
     if agent_name:
         configurable["agent_name"] = agent_name
     return {
+        # Consultas seletivas podem exigir catálogo, índices, referências e anexos
+        # antes da escrita. Limite finito, sem interromper o fluxo usual em 25 passos.
+        "recursion_limit": 64,
         "configurable": {
             **configurable,
         }
@@ -339,12 +347,13 @@ def _workflow_state(
     agent_name: AgentName,
     editor_mode: bool = False,
     user_edited: bool = False,
+    teacher_context: str | None = None,
 ) -> dict:
     return {
         "messages": _history(session["messages"]) + [HumanMessage(content=text)],
         "chat_id": _workflow_chat_id(session_id),
         "user_id": WORKFLOW_USER_ID_STR,
-        "context": None,
+        "context": teacher_context,
         "agent_name": GRAPH_AGENT_NAMES[agent_name],
         "selected_agent": None,
         "next_node": None,
@@ -489,7 +498,9 @@ async def _run_streamed_message(
     session_id: str,
     body: WorkflowMessageIn,
     emit: Callable[[dict], Awaitable[None]],
+    user: CurrentUser | None = None,
 ) -> dict:
+    await _ensure_session_access(session_id, user)
     session = await _ensure_session(session_id)
     _validate_agent_for_session(session, body.agent_name)
     text = body.text.strip()
@@ -504,9 +515,12 @@ async def _run_streamed_message(
         agent_name=body.agent_name,
         hidden=body.hidden,
     )
-    state = _workflow_state(session, session_id, text, body.agent_name)
+    teacher_context = await load_teacher_context(user.user_id if user else None, session_id)
+    state = _workflow_state(session, session_id, text, body.agent_name, teacher_context=teacher_context)
     try:
-        reply_text = await _stream_graph_response(state, _graph_config(session_id, body.agent_name), emit)
+        graph_config = _graph_config(session_id, body.agent_name, user.user_id if user else None)
+        await _extrai_sandbox_dir(graph_config)
+        reply_text = await _stream_graph_response(state, graph_config, emit)
     finally:
         try:
             await persist_workflow_files(session_id)
@@ -621,6 +635,7 @@ async def create_workflow_session(
             "configurable": {
                 "user_id": WORKFLOW_USER_ID_STR,
                 "thread_id": _workflow_chat_id(session["id"]),
+                "teacher_user_id": user.user_id if user else None,
                 "agent_name": body.agent_name or "brainstorm",
             }
         }
@@ -814,7 +829,7 @@ async def workflow_socket(websocket: WebSocket, session_id: str):
 
             if request_type == "message":
                 body = WorkflowMessageIn.model_validate(request)
-                payload = await _run_streamed_message(session_id, body, emit)
+                payload = await _run_streamed_message(session_id, body, emit, websocket_user)
                 await websocket.send_json(payload)
                 continue
 
@@ -880,13 +895,15 @@ async def _process_workflow_message(
         body.agent_name,
         editor_mode=editor_mode,
         user_edited=getattr(body, "user_edited", False),
+        teacher_context=await load_teacher_context(user.user_id if user else None, session_id),
     )
 
     try:
         # O ToolNode precisa receber a mesma identidade do chat para preparar
         # o sandbox correto. Sem esta configuração, execute_bash não consegue
         # resolver o diretório e falha antes de acessar planning.json.
-        graph_config = _graph_config(session_id, body.agent_name)
+        graph_config = _graph_config(session_id, body.agent_name, user.user_id if user else None)
+        await _extrai_sandbox_dir(graph_config)
         result = await GRAPH_BUILDER.ainvoke(state, config=graph_config)
         reply_text = _clean_agent_text(result["messages"][-1].content)
     except Exception:

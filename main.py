@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 import asyncio
+import os
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -7,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from db.pool import close_pool, init_pool
+from services.install_config import validate_install_config
 from routers import (
     auth_router,
     chat_router,
@@ -20,6 +22,7 @@ from routers import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    validate_install_config()
     # Só libera a aplicação depois que o pool existe. Caso contrário o
     # /health fica verde, mas as rotas de cadastro, chat e workflow retornam 500.
     for attempt in range(5):
@@ -39,7 +42,7 @@ app = FastAPI(title="Chat API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[] if os.getenv("APP_ENV") == "installation" else ["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )

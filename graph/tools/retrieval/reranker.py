@@ -17,13 +17,19 @@ from pathlib import Path
 
 import numpy as np
 from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI
+
+# Permite executar este utilitário diretamente, além de importá-lo pelo app.
+if __package__ in {None, ""}:
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+
+from services.llm import create_structured_model
 from openai import OpenAI
 from pydantic import BaseModel, Field
 
-load_dotenv(override=True)
+load_dotenv(override=False)
 
-MODELO_PADRAO = os.getenv("OPENAI_MODEL_NAME", "gpt-5.6-luna")
+MODELO_PADRAO = None  # Resolvido pelo provedor selecionado na hora da chamada.
 MODELO_EMBEDDING_PADRAO = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
 
 _PROMPT_SISTEMA = """\
@@ -55,15 +61,15 @@ def _montar_prompt_usuario(pergunta: str, candidatos: list[dict]) -> str:
     return "\n".join(linhas)
 
 
-def _modelo_rerank(modelo: str) -> ChatOpenAI:
-    return ChatOpenAI(model=modelo, temperature=0).with_structured_output(ResultadoRerank)
+def _modelo_rerank(modelo: str | None):
+    return create_structured_model(ResultadoRerank, model=modelo)
 
 
 def reranquear(
     pergunta: str,
     candidatos: list[dict],
     k_final: int = 10,
-    modelo: str = MODELO_PADRAO,
+    modelo: str | None = MODELO_PADRAO,
 ) -> list[dict]:
     """
     Reordena/filtra `candidatos` (saída de `fts_index.buscar()`) via LLM.

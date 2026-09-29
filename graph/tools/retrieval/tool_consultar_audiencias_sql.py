@@ -6,7 +6,6 @@ estruturados ou leia outros chunks usando linguagem natural.
 """
 
 import json
-import os
 import re
 import sqlite3
 from functools import lru_cache
@@ -14,7 +13,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from langchain_core.tools import tool
-from openai import OpenAI
+from services.llm import generate_text
 
 from .audiencias import INDICE_PADRAO
 
@@ -114,7 +113,6 @@ def _schema_consultavel() -> str:
 
 
 def _gerar_sql(pergunta: str) -> str:
-    modelo = os.getenv("OPENAI_MODEL_NAME") or os.getenv("OPENAI_MODEL", "gpt-5.6-luna")
     prompt = f"""Converta a pergunta em uma consulta SQLite somente de leitura.
 
 Regras obrigatórias:
@@ -133,8 +131,7 @@ Schema:
 Pergunta do agente:
 {pergunta}
 """
-    resposta = OpenAI().responses.create(model=modelo, input=prompt)
-    return resposta.output_text
+    return generate_text(prompt)
 
 
 def _validar_sql(sql: str) -> str:

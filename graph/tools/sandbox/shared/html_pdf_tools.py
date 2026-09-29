@@ -16,6 +16,11 @@ import tempfile
 from pathlib import Path
 from typing import Literal
 
+try:
+    from .html_page_contract import read_validation_result, validation_script, PaginationError
+except ImportError:  # Execução direta dentro do sandbox
+    from html_page_contract import read_validation_result, validation_script, PaginationError
+
 
 PDF_PRINT_OVERRIDES = """
 <style id="workflow-pdf-overrides">
@@ -25,12 +30,15 @@ PDF_PRINT_OVERRIDES = """
 }
 
 @media print {
+  html, body { margin: 0 !important; padding: 0 !important; }
   /* Cada marcador representa uma folha física do documento. */
   body > [data-ied-page] {
+    box-sizing: border-box;
+    margin: 0 !important;
     break-after: page;
     page-break-after: always;
   }
-  body > [data-ied-page]:last-child {
+  body > [data-ied-page]:not(:has(~ [data-ied-page])) {
     break-after: auto;
     page-break-after: auto;
   }
@@ -102,6 +110,7 @@ def render_html_to_pdf(
             delete=False,
         ) as html_file:
             html_file.write(html_for_pdf(html_content, orientation))
+            html_file.write(validation_script(orientation).encode("utf-8"))
             html_path = Path(html_file.name)
 
         with tempfile.TemporaryDirectory(prefix="chromium-profile-", dir=temporary_dir) as profile_dir:
@@ -117,15 +126,27 @@ def render_html_to_pdf(
                     "XDG_CACHE_HOME": str(cache_dir),
                 }
             )
+            browser = _find_browser()
+            check = subprocess.run(
+                [browser, "--headless", "--no-sandbox", "--disable-gpu",
+                 "--disable-dev-shm-usage", "--allow-file-access-from-files",
+                 f"--user-data-dir={profile_path}", "--virtual-time-budget=3000",
+                 "--dump-dom", str(html_path)],
+                capture_output=True, env=process_env, timeout=120, check=False,
+            )
+            if check.returncode != 0:
+                raise PaginationError("Não foi possível verificar a paginação no navegador.")
+            marked_pages = read_validation_result(check.stdout.decode("utf-8", errors="replace"))
             result = subprocess.run(
                 [
-                    _find_browser(),
+                    browser,
                     "--headless",
                     "--no-sandbox",
                     "--disable-gpu",
                     "--disable-dev-shm-usage",
                     "--allow-file-access-from-files",
                     f"--user-data-dir={profile_path}",
+                    "--no-pdf-header-footer",
                     f"--print-to-pdf={output_path}",
                     str(html_path),
                 ],
@@ -138,6 +159,14 @@ def render_html_to_pdf(
         if result.returncode != 0 or not output_path.is_file() or output_path.stat().st_size == 0:
             detail = result.stderr.decode("utf-8", errors="replace").strip()
             raise RuntimeError(detail or "Não foi possível gerar o PDF")
+        if marked_pages:
+            import pymupdf
+            with pymupdf.open(output_path) as pdf:
+                if pdf.page_count != marked_pages:
+                    raise PaginationError(
+                        f"O HTML tem {marked_pages} páginas delimitadas, mas gerou "
+                        f"{pdf.page_count} folhas no PDF. Redistribua o conteúdo antes de exportar."
+                    )
         return output_path
     finally:
         if html_path:

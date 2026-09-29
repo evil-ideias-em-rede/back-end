@@ -1,4 +1,5 @@
-from ..loader import render
+from ..loader import render_for_agent
+from ..material_rules import material_rules
 from .rules import (
     ACERVO_PEDAGOGICO,
     LEITURA_DO_PLANEJAMENTO,
@@ -9,7 +10,9 @@ from .rules import (
 
 
 ATIVIDADE_GENERICA_PROMPT = f"""
-{render("25-criacao-livre")}
+{render_for_agent("25-criacao-livre")}
+
+{material_rules("generic")}
 
 {ACERVO_PEDAGOGICO}
 

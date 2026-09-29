@@ -3,18 +3,24 @@ from langchain_core.runnables import RunnableConfig
 
 from graph.tools.sandbox.execute_bash import execute_bash
 from graph.tools.sandbox.suggested_files import execute_suggested_files
+from graph.tools.sandbox.templates import consultar_templates
+from graph.tools.sandbox.acervo import consultar_acervo
+from graph.tools.sandbox.teacher_materials import consultar_materiais_professor
+from graph.agent.prompts.pedagogical_rules import PEDAGOGICAL_READING_RULES
+from graph.agent.prompts.template_rules import TEMPLATE_RULES
+from graph.agent.prompts.brainstorm_rules import BRAINSTORM_SCOPE
 from graph.tools.sandbox.workdir import workspace_for_chat
 from graph.tools.retrieval.audiencias import consultar_audiencia_por_id
 from graph.tools.retrieval.tool_buscar_audiencias import buscar_audiencias
 from graph.tools.retrieval.tool_consultar_audiencias_sql import consultar_audiencias_sql
 from graph.tools.retrieval.tool_consultar_bncc import consultar_bncc
 from graph.agent.prompts.editor.rules import EDIT_RULES
+from graph.agent.prompts.delivery_rules import HTML_PAGE_RULES, SUGGESTED_CHAT_RULES
 from langchain_core.tools import tool
 
-import os
-from dotenv import load_dotenv
 from functools import lru_cache
 from langchain_openai import ChatOpenAI
+from services.llm import create_chat_model
 from dotenv import load_dotenv
 from langchain_community.tools.tavily_search import TavilySearchResults
 
@@ -60,7 +66,7 @@ load_dotenv(override=False)
 
 @lru_cache(maxsize=1)
 def get_chat_model() -> ChatOpenAI:
-    return ChatOpenAI(model=os.getenv("OPENAI_MODEL_NAME", "gpt-5.6-luna"), use_responses_api=True,)
+    return create_chat_model()
 
 
 def _safe_config(state, config: RunnableConfig | None) -> RunnableConfig:
@@ -89,13 +95,19 @@ async def run_agent(
 ) -> dict:
     """Executa uma rodada do agente em streaming; o grafo decide se chama as ferramentas."""
     safe_config = _safe_config(state, config)
+    is_brainstorm = state.get("agent_name") in {"brainstorm", "brainstorm_node"}
     system_text = system_prompt
+    if not is_brainstorm:
+        system_text += "\n\n" + HTML_PAGE_RULES + "\n\n" + TEMPLATE_RULES
+        system_text += "\n\n" + PEDAGOGICAL_READING_RULES
+    if not state.get("editor_mode"):
+        system_text += "\n\n" + SUGGESTED_CHAT_RULES
     if state.get("context"):
-        system_text += f"\n\nContexto persistido deste chat:\n{state['context']}"
+        system_text += f"\n\nContexto atual autorizado para esta conversa:\n{state['context']}"
     if state.get("editor_mode"):
         system_text += f"\n\n{EDIT_RULES}"
     if tools is not None:
-        agent_tools = tools
+        agent_tools = list(tools)
     elif state.get("editor_mode"):
         # No editor, o agente só pode operar sobre os arquivos do sandbox.
         agent_tools = [execute_bash, web_search]
@@ -109,6 +121,11 @@ async def run_agent(
             web_search
         ]
         system_text = system_text.replace("execute_bash", execute_suggested_files.name)
+    for reference_tool in (consultar_templates, consultar_acervo, consultar_materiais_professor, consultar_bncc):
+        if reference_tool not in agent_tools:
+            agent_tools.append(reference_tool)
+    if is_brainstorm:
+        system_text += "\n\n" + BRAINSTORM_SCOPE
     tool_names = ", ".join(getattr(agent_tool, "name", "ferramenta") for agent_tool in agent_tools)
     system_text += (
         f"\n\nVocê tem exatamente estas ferramentas: {tool_names}. "

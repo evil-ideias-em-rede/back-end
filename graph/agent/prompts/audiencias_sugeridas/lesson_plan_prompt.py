@@ -1,4 +1,5 @@
-from ..loader import render
+from ..loader import render_for_agent
+from ..material_rules import material_rules
 from .rules import (
     ACERVO_PEDAGOGICO,
     LEITURA_DO_PLANEJAMENTO,
@@ -9,7 +10,9 @@ from .rules import (
 
 
 PLANO_DE_AULA_PROMPT = f"""
-{render("20-plano-de-aula")}
+{render_for_agent("20-plano-de-aula")}
+
+{material_rules("lesson_plan")}
 
 {ACERVO_PEDAGOGICO}
 

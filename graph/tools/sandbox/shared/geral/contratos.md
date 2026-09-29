@@ -1,5 +1,34 @@
 # Contratos
 
+## Uso atual no aplicativo
+
+Para editar o material, siga `guia_edicao.md` e as instruções do agente.
+No sandbox, `templates/`, `formatos-de-aula/`, `teorias/` e `dados/`
+ficam diretamente na raiz. Há modelos de plano e uma base específica de slides.
+Slides sempre usa slide-template.html, inclusive com uploads pessoais como apoio.
+Os demais agentes usam só pessoais quando houver uploads, ou padrões sem uploads.
+Os princípios e regras de fonte são injetados pelo loader no prompt do agente;
+não é necessário nem esperado consultar uma pasta `prompts/` no sandbox.
+
+O brainstorm só pode explorar fontes e escrever `planning.json`, nunca HTML.
+Na tela de sugestões, somente os especialistas de geração também podem escrever
+`HTML.html`. As fontes e a BNCC vêm de ferramentas próprias.
+Nas duas telas, consultar_acervo lê formatos, teorias, guias e CSVs;
+consultar_templates lê exclusivamente a biblioteca autorizada da sessão;
+consultar_materiais_professor lê anexos didáticos privados pertinentes.
+Para criar/reformular pedagogicamente, siga guia_consulta.md, não o pipeline
+hipotético abaixo.
+No editor, execute_bash pode consultar o acervo, mas deve preservar os arquivos
+de referência e as partes do material que o professor não pediu para alterar.
+
+## Arquitetura proposta (referência de projeto)
+
+O restante deste documento descreve um pipeline planejado. As etapas 10–15,
+17, 19 e 30–33 não possuem nodes implementados; o agente não deve afirmar que
+foram executadas nem esperar seus resultados. Registro automático de VERSION
+e verificações paralelas abaixo também não são garantias do fluxo atual.
+
+
 ## Encadeamento
 
 ```
@@ -52,7 +81,7 @@ mensagem do professor
 | `PRESS_ITEMS` | professor, opcional | 24 |
 | `FREE_REQUEST` | professor | 25 |
 | `EDIT_REQUEST`, `CURRENT_DOCUMENT` | professor e aplicação | 16 |
-| `PEDAGOGICAL_PRINCIPLES`, `SOURCE_RULES`, `LEGISLATIVE_GLOSSARY`, `THEORY_USAGE` | `prompts/componentes/` | 12–16, 20–25, 31 |
+| `PEDAGOGICAL_PRINCIPLES`, `SOURCE_RULES`, `LEGISLATIVE_GLOSSARY`, `THEORY_USAGE` | componentes injetados pelo loader no prompt do agente | 12–16, 20–25, 31 |
 | `GENERATED_DOCUMENT`, `SOURCE_ANALYSIS`, `PLANNING` | `20`–`25` | 30–33 |
 
 ## Modelo de dados do debate
@@ -124,7 +153,7 @@ Duas etapas, dois mecanismos.
 
 ## Referências de estrutura
 
-A forma do material vem de três lugares desta pasta: `templates/` para a estrutura do plano de aula, `formatos-de-aula/` para a condução da aula, e `prompts/componentes/` para os princípios de redação. `TEACHER_MATERIALS` acrescenta o que o professor cadastrou e tem precedência sobre os três.
+A forma do material vem de três lugares desta pasta: `templates/` para a estrutura do plano de aula, `formatos-de-aula/` para a condução da aula, e componentes injetados pelo loader no prompt do agente para os princípios de redação. `TEACHER_MATERIALS` acrescenta o que o professor cadastrou e tem precedência sobre os três.
 
 ## Regras de carregamento
 

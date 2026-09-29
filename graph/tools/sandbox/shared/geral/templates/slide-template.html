@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Template de Slides - Gerador IA (Pastel e Neutro)</title>
+    <style>
+        /* Variáveis de Tema (Design Neutro, Pastel e Apartidário) */
+        :root {
+            --slide-bg: #fffcf9;          /* Fundo branco quente/creme muito suave */
+            --title-color: #6b5b53;       /* Taupe escuro / Fendi (neutro e elegante) */
+            --text-color: #5c534f;        /* Marrom acinzentado escuro para leitura */
+            --accent-color: #d99a71;      /* Terracota pastel / Pêssego escuro */
+            --box-bg: #fcf7f2;            /* Fundo areia/creme pastel para caixas */
+            --border-color: #ebdcd0;      /* Bege suave para bordas finas */
+        }
+
+        /* Ambiente de visualização */
+        body {
+            background-color: #d6d2ce;    /* Fundo neutro do navegador */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 40px;
+            padding: 40px 20px;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+        }
+
+        /* Estrutura Base do Slide (Proporção 16:9) */
+        .slide {
+            background-color: var(--slide-bg);
+            width: 100%;
+            max-width: 960px;
+            aspect-ratio: 16 / 9;
+            border-radius: 12px;
+            box-shadow: 0 15px 35px -5px rgba(0,0,0,0.1);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            box-sizing: border-box;
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+        }
+
+        /* Estilos Comuns de Texto */
+        .slide-title {
+            color: var(--title-color);
+            font-weight: 800;
+            line-height: 1.2;
+            margin: 0 0 15px 0;
+            letter-spacing: -0.5px;
+        }
+
+        .slide-text {
+            font-size: 1.15rem;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+
+        .slide-tag {
+            background-color: var(--accent-color);
+            color: white;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            display: inline-block;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Placeholder para Imagens */
+        .img-placeholder {
+            background-color: #ebdcd0;
+            background-image: linear-gradient(135deg, #ebdcd0 25%, #e0cfc1 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #8c7e73;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 1rem;
+        }
+
+        /* =========================================
+           LAYOUT 1: CAPA COM DESTAQUE ASSIMÉTRICO
+           ========================================= */
+        .layout-cover {
+            flex-direction: row;
+        }
+        .layout-cover .content-half {
+            width: 60%;
+            padding: 80px 50px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            position: relative;
+            z-index: 2;
+            background: linear-gradient(90deg, #fffcf9 80%, transparent 100%);
+        }
+        .layout-cover .image-half {
+            width: 50%;
+            height: 100%;
+            position: absolute;
+            right: 0;
+            top: 0;
+            z-index: 1;
+        }
+        .layout-cover .slide-title {
+            font-size: 3.8rem;
+            border-left: 6px solid var(--accent-color);
+            padding-left: 20px;
+        }
+        .layout-cover .slide-text {
+            font-size: 1.4rem;
+            color: #7d6e65;
+            padding-left: 26px;
+        }
+
+        /* =========================================
+           LAYOUT 2: CONTEÚDO DIVIDIDO (Texto/Imagem)
+           ========================================= */
+        .layout-split {
+            padding: 50px;
+            gap: 50px;
+            align-items: center;
+        }
+        .layout-split .image-col {
+            flex: 1;
+            height: 80%;
+            border-radius: 16px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+        }
+        .layout-split .text-col {
+            flex: 1.2;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .layout-split .slide-title {
+            font-size: 2.4rem;
+        }
+        .layout-split ul {
+            padding-left: 0;
+            list-style: none;
+        }
+        .layout-split li {
+            margin-bottom: 12px;
+            font-size: 1.15rem;
+            padding-left: 24px;
+            position: relative;
+        }
+        .layout-split li::before {
+            content: '•';
+            color: var(--accent-color);
+            font-size: 1.8rem;
+            position: absolute;
+            left: 0;
+            top: -6px;
+        }
+
+        /* =========================================
+           LAYOUT 3: GRID DE 4 QUADRANTES (Cards Elevados)
+           ========================================= */
+        .layout-grid {
+            padding: 50px;
+            flex-direction: column;
+        }
+        .layout-grid .slide-title {
+            font-size: 2.2rem;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .grid-2x2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 25px;
+            flex: 1;
+        }
+        .grid-card {
+            background-color: var(--box-bg);
+            border-top: 4px solid var(--title-color);
+            border-radius: 8px;
+            padding: 25px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.03);
+        }
+        .grid-card-title {
+            font-size: 1.3rem;
+            font-weight: 800;
+            margin-bottom: 12px;
+            color: var(--title-color);
+        }
+
+        /* =========================================
+           LAYOUT 4: LISTA DE PASSOS (Estilo Timeline)
+           ========================================= */
+        .layout-steps {
+            padding: 50px;
+            flex-direction: column;
+        }
+        .layout-steps .slide-title {
+            font-size: 2.4rem;
+            margin-bottom: 40px;
+        }
+        .step-list {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            flex: 1;
+            position: relative;
+        }
+        .step-item {
+            display: flex;
+            align-items: center;
+            gap: 25px;
+            background-color: transparent;
+            padding: 0;
+        }
+        .step-number {
+            background-color: var(--box-bg);
+            color: var(--accent-color);
+            border: 2px solid var(--accent-color);
+            width: 45px;
+            height: 45px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            font-size: 1.4rem;
+            font-weight: 900;
+            flex-shrink: 0;
+            position: relative;
+            z-index: 2;
+        }
+        .step-text {
+            font-size: 1.2rem;
+            background-color: var(--box-bg);
+            padding: 18px 25px;
+            border-radius: 8px;
+            flex: 1;
+            border: 1px solid var(--border-color);
+        }
+
+        /* =========================================
+           LAYOUT 5: QUIZ / MÚLTIPLA ESCOLHA
+           ========================================= */
+        .layout-quiz {
+            padding: 50px;
+            flex-direction: column;
+        }
+        .layout-quiz .slide-title {
+            font-size: 2.2rem;
+            margin-bottom: 15px;
+            color: var(--accent-color);
+        }
+        .quiz-question {
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin-bottom: 35px;
+            color: var(--title-color);
+        }
+        .quiz-options {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            flex: 1;
+        }
+        .quiz-option {
+            display: flex;
+            align-items: flex-start;
+            gap: 15px;
+            background-color: var(--box-bg);
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .quiz-number {
+            font-size: 1.5rem;
+            font-weight: 900;
+            color: var(--title-color);
+            background-color: var(--slide-bg);
+            border: 1px solid var(--border-color);
+            width: 35px;
+            height: 35px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .quiz-box {
+            font-size: 1.15rem;
+            line-height: 1.4;
+            padding-top: 4px;
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- LAYOUT 1: CAPA COM DESTAQUE ASSIMÉTRICO -->
+    <div class="slide layout-cover">
+        <div class="content-half">
+            <h1 class="slide-title">[Título Principal da Aula]</h1>
+            <p class="slide-text">[Subtítulo explicativo ou provocação inicial sobre o tema abordado]</p>
+        </div>
+        <div class="img-placeholder image-half">
+            [Imagem de Capa]
+        </div>
+    </div>
+
+    <!-- LAYOUT 2: CONTEÚDO COM IMAGEM À ESQUERDA -->
+    <div class="slide layout-split">
+        <div class="img-placeholder image-col">
+            [Imagem de Apoio ao Conteúdo]
+        </div>
+        <div class="text-col">
+            <span class="slide-tag">[Categoria / Módulo]</span>
+            <h2 class="slide-title">[Título do Tópico Central]</h2>
+            <p class="slide-text">[Parágrafo introdutório que contextualiza o problema ou a teoria discutida.]</p>
+            <ul>
+                <li><strong>[Argumento 1]:</strong> [Breve explicação ou citação extraída da base de dados].</li>
+                <li><strong>[Argumento 2]:</strong> [Breve explicação ou contraponto extraído da base de dados].</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- LAYOUT 3: GRID DE 4 QUADRANTES (Cards Elevados) -->
+    <div class="slide layout-grid">
+        <h2 class="slide-title">[Título do Quadro Comparativo]</h2>
+        <div class="grid-2x2">
+            <div class="grid-card">
+                <div class="grid-card-title">[Conceito A]</div>
+                <div class="slide-text">[Explicação detalhada da primeira vertente ou ator político envolvido no debate.]</div>
+            </div>
+            <div class="grid-card">
+                <div class="grid-card-title">[Conceito B]</div>
+                <div class="slide-text">[Explicação detalhada da segunda vertente ou ator político envolvido no debate.]</div>
+            </div>
+            <div class="grid-card">
+                <div class="grid-card-title">[Conceito C]</div>
+                <div class="slide-text">[Explicação detalhada da terceira vertente ou ator político envolvido no debate.]</div>
+            </div>
+            <div class="grid-card">
+                <div class="grid-card-title">[Conceito D]</div>
+                <div class="slide-text">[Explicação detalhada da quarta vertente ou ator político envolvido no debate.]</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- LAYOUT 4: LISTA DE PASSOS (Estilo Timeline) -->
+    <div class="slide layout-steps">
+        <h2 class="slide-title">[Processo Histórico ou Sequência de Fatos]</h2>
+        <div class="step-list">
+            <div class="step-item">
+                <div class="step-number">1</div>
+                <div class="step-text"><strong>[Fase/Etapa 1]:</strong> [Descrição do primeiro marco importante ou argumento apresentado no debate.]</div>
+            </div>
+            <div class="step-item">
+                <div class="step-number">2</div>
+                <div class="step-text"><strong>[Fase/Etapa 2]:</strong> [Descrição da reação, consequência ou contraponto que ocorreu em seguida.]</div>
+            </div>
+            <div class="step-item">
+                <div class="step-number">3</div>
+                <div class="step-text"><strong>[Fase/Etapa 3]:</strong> [Descrição da conclusão, projeto de lei proposto ou encaminhamento final.]</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- LAYOUT 5: QUIZ / VERIFICAÇÃO DE CONHECIMENTO -->
+    <div class="slide layout-quiz">
+        <h2 class="slide-title">Verificação de Conhecimento</h2>
+        <p class="quiz-question">[Insira aqui uma pergunta problematizadora baseada nos discursos ou conceitos recém-apresentados.]</p>
+
+        <div class="quiz-options">
+            <div class="quiz-option">
+                <div class="quiz-number">A</div>
+                <div class="quiz-box">[Primeira alternativa interpretativa ou factual]</div>
+            </div>
+            <div class="quiz-option">
+                <div class="quiz-number">B</div>
+                <div class="quiz-box">[Segunda alternativa interpretativa ou factual]</div>
+            </div>
+            <div class="quiz-option">
+                <div class="quiz-number">C</div>
+                <div class="quiz-box">[Terceira alternativa interpretativa ou factual]</div>
+            </div>
+            <div class="quiz-option">
+                <div class="quiz-number">D</div>
+                <div class="quiz-box">[Quarta alternativa interpretativa ou factual]</div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

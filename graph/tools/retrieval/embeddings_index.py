@@ -38,7 +38,7 @@ try:
 except ImportError:  # permite executar `python embeddings_index.py` na pasta
     from fts_index import INDICE_PADRAO, buscar
 
-load_dotenv(override=True)
+load_dotenv(override=False)
 
 MODELO_EMBEDDING_PADRAO = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
 DIMENSAO_EMBEDDING = 1536
