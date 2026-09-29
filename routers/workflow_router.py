@@ -8,6 +8,7 @@ from uuid import uuid4
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
 from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.exceptions import ContextOverflowError
 from pydantic import BaseModel, ConfigDict, Field
 
 from auth.dependencies import CurrentUser, get_optional_current_user
@@ -928,10 +929,22 @@ async def _process_workflow_message(
         await _extrai_sandbox_dir(graph_config)
         result = await GRAPH_BUILDER.ainvoke(state, config=graph_config)
         reply_text = _clean_agent_text(result["messages"][-1].content)
-    except Exception:
-        # A entrada do usuário já foi salva. Deixamos o erro chegar ao front
-        # para que uma falha do provedor não seja confundida com resposta do agente.
+    except HTTPException:
         raise
+    except ContextOverflowError as exc:
+        logger.exception("Limite de contexto na sessão %s", session_id)
+        raise HTTPException(
+            status_code=422,
+            detail="O conteúdo consultado ficou grande demais para gerar o material. Tente um recorte mais específico da audiência ou inicie uma nova conversa.",
+        ) from exc
+    except Exception as exc:
+        # HTTPException atravessa o CORS com uma resposta JSON legível. Uma
+        # exceção sem tratamento virava 500 sem CORS e aparecia como falha de rede.
+        logger.exception("Falha ao processar mensagem da sessão %s", session_id)
+        raise HTTPException(
+            status_code=502,
+            detail="Não foi possível concluir a resposta. Sua mensagem foi salva; tente novamente em alguns instantes.",
+        ) from exc
     finally:
         try:
             await persist_workflow_files(session_id)

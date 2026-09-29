@@ -14,6 +14,7 @@ import sys
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from langchain_core.tools import tool
 
@@ -425,16 +426,52 @@ def consultar_audiencia(audiencia_id: int | str, caminho_indice: Path = INDICE_P
     return None
 
 
-@tool("consultar_audiencia_por_id")
-def consultar_audiencia_por_id(audiencia_id: int) -> str:
-    """Retorna o debate inteiro pelo ID da audiência, já segmentado e anotado.
+AUDIENCE_PAGE_CHARS = 12000
 
-    Use depois de localizar a audiência com ``buscar_audiencias``. O retorno traz
-    o registro real correspondente ao ``ref_id`` encontrado, incluindo ``materia``
-    e a ``transcricao`` original quando a audiência vem do dataset LDS. Ele é
-    organizado por participante e, dentro de cada um, pelas suas ``falas`` —
-    no LDS, essas falas correspondem às opiniões estruturadas da matéria;
-    a transcrição integral fica no campo ``transcricao``.
+
+def _audience_section(resultado: dict, secao: str, discurso_id: str | None):
+    if secao == "resumo":
+        return {
+            key: resultado.get(key)
+            for key in ("id", "titulo", "data", "resumo", "participantes")
+        } | {
+            "indice_discursos": [
+                {"id": fala.get("id"), "orador": fala.get("orador"),
+                 "resumo_previa": str(fala.get("resumo") or "")[:300]}
+                for fala in resultado.get("discursos", [])
+            ],
+            "orientacao": "Prévia para localizar falas, não contém citações. Leia secao=discursos com discurso_id para consultar as falas pertinentes; transcricao e propostas estão disponíveis em seções próprias.",
+        }
+    if secao == "discursos" and discurso_id is not None:
+        fala = next((fala for fala in resultado.get("discursos", [])
+                     if str(fala.get("id")) == discurso_id), None)
+        if fala is None:
+            raise ValueError("Discurso não encontrado. Consulte os IDs na seção resumo.")
+        return fala
+    return resultado.get(secao) or ([] if secao != "transcricao" else "")
+
+
+@tool("consultar_audiencia_por_id")
+def consultar_audiencia_por_id(
+    audiencia_id: int,
+    secao: Literal["resumo", "discursos", "transcricao", "propostas"] = "resumo",
+    inicio: int = 0,
+    discurso_id: str | None = None,
+) -> str:
+    """Consulta uma audiência por partes, sem carregar o debate inteiro no contexto.
+
+    Comece somente com audiencia_id: resumo e índice com IDs, oradores e prévias
+    das falas. Para citações, use secao="discursos" e discurso_id do índice.
+    Sem discurso_id, essa seção contém todas as falas. Outras seções disponíveis:
+    "transcricao" (texto integral original) e "propostas" (propostas registradas).
+    Leia apenas os recortes pertinentes ao pedido, sem repetir a transcrição
+    quando já consultou as falas anotadas.
+
+    conteudo é texto (JSON serializado para seções estruturadas), limitado a
+    12000 caracteres por chamada. inicio é deslocamento em caracteres. Continue
+    com proximo_inicio e os mesmos secao/discurso_id; null indica fim da seção.
+    Uma página pode terminar no meio de uma fala: leia sua continuação antes de
+    citá-la. Nunca alegue ter lido partes não retornadas.
 
     Cada fala pode trazer:
 
@@ -467,7 +504,21 @@ def consultar_audiencia_por_id(audiencia_id: int) -> str:
             {"erro": f"Audiência {audiencia_id} não encontrada no índice."},
             ensure_ascii=False,
         )
-    return json.dumps(resultado, ensure_ascii=False)
+    if inicio < 0:
+        return json.dumps({"erro": "inicio deve ser maior ou igual a zero."}, ensure_ascii=False)
+    if discurso_id is not None and secao != "discursos":
+        return json.dumps({"erro": "discurso_id só se aplica à seção discursos."}, ensure_ascii=False)
+    try:
+        section = _audience_section(resultado, secao, discurso_id)
+    except ValueError as exc:
+        return json.dumps({"erro": str(exc)}, ensure_ascii=False)
+    text = section if isinstance(section, str) else json.dumps(section, ensure_ascii=False)
+    end = min(inicio + AUDIENCE_PAGE_CHARS, len(text))
+    return json.dumps({
+        "audiencia_id": audiencia_id, "secao": secao, "discurso_id": discurso_id,
+        "conteudo": text[inicio:end], "inicio": inicio, "total": len(text),
+        "unidade": "caracteres", "proximo_inicio": end if end < len(text) else None,
+    }, ensure_ascii=False)
 
 
 if __name__ == "__main__":
