@@ -1,13 +1,19 @@
+"""Ferramenta que expõe somente arquivos explicitamente permitidos."""
+
 import asyncio
 import json
 import re
+import shutil
+import tempfile
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Callable
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool, tool
+from microsandbox import ExecTimeoutError
 
+from .microsandbox_runtime import COMMAND_TIMEOUT_SECONDS, run_in_microsandbox
 from .workdir import _extrai_sandbox_dir
 
 
@@ -23,54 +29,44 @@ def _result(stdout: bytes = b"", stderr: bytes = b"", returncode: int = 0) -> st
     )
 
 
-COMMAND_TIMEOUT_SECONDS = 300
+def _prepare_restricted_workspace(
+    sandbox_dir: Path,
+    filenames: Sequence[str],
+    staging_dir: Path,
+) -> list[Path]:
+    """Copia somente os arquivos permitidos para a área montada na microVM."""
+    originals = []
+    for filename in filenames:
+        original = sandbox_dir / filename
+        if original.is_symlink() or (original.exists() and not original.is_file()):
+            raise ValueError(f"{filename} precisa ser um arquivo regular")
+        original.touch(exist_ok=True)
+        shutil.copy2(original, staging_dir / filename)
+        originals.append(original)
+    return originals
 
 
-def _command_for_files(comando: str, allowed_files: Sequence[Path]) -> list[str]:
-    """Monta um bubblewrap que expõe apenas os arquivos permitidos."""
-    command_with_limits = f"ulimit -u 64 -v 2097152 -f 20480; {comando}"
-    file_bindings = [
-        argument
-        for allowed_file in allowed_files
-        for argument in ("--bind", str(allowed_file), f"/workspace/{allowed_file.name}")
-    ]
-    command = [
-        "bwrap",
-        "--ro-bind", "/usr", "/usr",
-        "--ro-bind", "/lib", "/lib",
-        "--ro-bind", "/lib64", "/lib64",
-        "--ro-bind", "/bin", "/bin",
-        "--ro-bind", "/usr/local", "/usr/local",
-        "--dir", "/workspace",
-        "--chmod", "0555", "/workspace",
-        *file_bindings,
-        "--chdir", "/workspace",
-        "--unshare-all",
-        "--die-with-parent",
-        "--new-session",
-        "--dev", "/dev",
-        "--clearenv",
-        "--setenv", "PATH", "/usr/local/bin:/usr/bin:/bin",
-        "--setenv", "HOME", "/workspace",
-        "--cap-drop", "ALL",
-        "--uid", "65534", "--gid", "65534",
-        "bash", "-c", command_with_limits,
-    ]
-    if not Path("/.dockerenv").exists():
-        command[command.index("--dev"):command.index("--dev")] = ["--proc", "/proc"]
-    return command
+def _sync_restricted_workspace(
+    originals: Sequence[Path],
+    staging_dir: Path,
+) -> str | None:
+    """Sincroniza os permitidos e recusa exclusões ou links criados pelo comando."""
+    for original in originals:
+        staged = staging_dir / original.name
+        if staged.is_symlink() or not staged.is_file():
+            return f"{original.name} nao pode ser excluido nem substituido por link"
+    for original in originals:
+        if original.is_symlink() or not original.is_file():
+            return f"{original.name} deixou de ser um arquivo regular"
+        shutil.copyfile(staging_dir / original.name, original)
+    return None
 
 
 def restricted_file_tool(
     filename: str | Sequence[str],
     formatter: Callable[[str | Path], str | None] | None = None,
 ) -> BaseTool:
-    """Cria uma ferramenta com acesso exclusivo a arquivos do sandbox.
-
-    Os arquivos permitidos podem ser lidos e alterados, mas não excluídos. O diretório
-    virtual exposto ao processo não permite criar outros arquivos e não contém
-    nenhum dos demais arquivos reais do sandbox.
-    """
+    """Cria uma tool cuja microVM recebe exclusivamente os arquivos indicados."""
     filenames = [filename] if isinstance(filename, str) else list(filename)
     if not filenames:
         raise ValueError("informe pelo menos um arquivo permitido")
@@ -82,46 +78,61 @@ def restricted_file_tool(
             raise ValueError("cada filename deve ser somente o nome de um arquivo")
 
     primary_filename = filenames[0]
-    tool_name = f"execute_{re.sub(r'[^a-zA-Z0-9_]+', '_', primary_filename.removesuffix('.json').removesuffix('.md'))}_restricted"
+    tool_name = (
+        "execute_"
+        f"{re.sub(r'[^a-zA-Z0-9_]+', '_', primary_filename.removesuffix('.json').removesuffix('.md'))}"
+        "_restricted"
+    )
 
     async def execute_restricted_file(comando: str, config: RunnableConfig) -> str:
         if not isinstance(comando, str) or not comando.strip():
-            return _result(stderr="O comando deve ser uma string não vazia".encode(), returncode=-1)
+            return _result(
+                stderr=b"O comando deve ser uma string nao vazia",
+                returncode=-1,
+            )
 
         try:
             sandbox_dir = Path(await _extrai_sandbox_dir(config))
-            allowed_files = [sandbox_dir / allowed_filename for allowed_filename in filenames]
-            for allowed_file in allowed_files:
-                if allowed_file.is_symlink() or (allowed_file.exists() and not allowed_file.is_file()):
-                    return _result(
-                        stderr=f"{allowed_file.name} precisa ser um arquivo regular".encode(),
-                        returncode=-1,
-                    )
-                allowed_file.touch(exist_ok=True)
-            command = _command_for_files(comando, allowed_files)
-            process = await asyncio.create_subprocess_exec(
-                *command,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            try:
-                stdout, stderr = await asyncio.wait_for(
-                    process.communicate(),
-                    timeout=COMMAND_TIMEOUT_SECONDS,
-                )
-            except asyncio.TimeoutError:
-                process.kill()
-                await process.communicate()
-                return _result(
-                    stderr=f"Comando excedeu o tempo limite ({COMMAND_TIMEOUT_SECONDS}s)".encode(),
-                    returncode=-1,
+            with tempfile.TemporaryDirectory(
+                prefix=".restricted-",
+                dir=sandbox_dir.parent,
+            ) as temporary:
+                staging_dir = Path(temporary)
+                staging_dir.chmod(0o700)
+                originals = _prepare_restricted_workspace(
+                    sandbox_dir,
+                    filenames,
+                    staging_dir,
                 )
 
-            if formatter:
-                warning = formatter(sandbox_dir)
-                if warning:
-                    stderr += f"\nNão foi possível formatar {primary_filename}: {warning}".encode()
-            return _result(stdout, stderr, process.returncode)
+                try:
+                    output = await run_in_microsandbox(comando, staging_dir)
+                except ExecTimeoutError:
+                    sync_error = _sync_restricted_workspace(originals, staging_dir)
+                    detail = sync_error or (
+                        f"Comando excedeu o tempo limite ({COMMAND_TIMEOUT_SECONDS}s)"
+                    )
+                    return _result(stderr=detail.encode(), returncode=-1)
+                except asyncio.CancelledError:
+                    _sync_restricted_workspace(originals, staging_dir)
+                    raise
+                except Exception as exc:
+                    sync_error = _sync_restricted_workspace(originals, staging_dir)
+                    detail = sync_error or str(exc)
+                    return _result(stderr=detail.encode(), returncode=-1)
+
+                sync_error = _sync_restricted_workspace(originals, staging_dir)
+                if sync_error:
+                    return _result(stderr=sync_error.encode(), returncode=-1)
+
+                stderr = output.stderr
+                if formatter:
+                    warning = formatter(sandbox_dir)
+                    if warning:
+                        stderr += (
+                            f"\nNão foi possível formatar {primary_filename}: {warning}"
+                        ).encode()
+                return _result(output.stdout, stderr, output.returncode)
         except (OSError, ValueError, RuntimeError) as exc:
             return _result(stderr=str(exc).encode(), returncode=-1)
 
@@ -130,6 +141,7 @@ def restricted_file_tool(
         tool_name,
         description=(
             f"Lê e escreve somente {allowed_names}. "
-            "Não exclua esses arquivos, não crie outros arquivos e não acesse outros arquivos do sandbox."
+            "Não exclua esses arquivos, não crie outros arquivos e não acesse "
+            "outros arquivos do sandbox."
         ),
     )(execute_restricted_file)

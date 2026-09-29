@@ -1,178 +1,86 @@
-import os
-import json
+"""Tool de shell executada em uma microVM descartável."""
+
 import asyncio
-from langchain_core.tools import tool
-from .workdir import _extrai_sandbox_dir
-from .format_planning import format_planning_file
-from .config_sandbox import _montar_comando_sandboxed
+import json
+
 from langchain_core.runnables import RunnableConfig
+from langchain_core.tools import tool
+from microsandbox import ExecTimeoutError
 
-
-COMMAND_TIMEOUT_SECONDS = 300
+from .format_planning import format_planning_file
+from .microsandbox_runtime import COMMAND_TIMEOUT_SECONDS, run_in_microsandbox
+from .workdir import _extrai_sandbox_dir
 
 
 def _format_warning(work_dir: str) -> str:
     error = format_planning_file(work_dir)
-    return f"\nNão foi possível formatar planning.json automaticamente: {error}" if error else ""
+    return (
+        f"\nNão foi possível formatar planning.json automaticamente: {error}"
+        if error
+        else ""
+    )
+
+
+def _result(
+    stdout: bytes = b"",
+    stderr: bytes = b"",
+    returncode: int = 0,
+) -> str:
+    return json.dumps(
+        {
+            "stdout": stdout.decode("utf-8", errors="replace"),
+            "stderr": stderr.decode("utf-8", errors="replace"),
+            "returncode": returncode,
+            "sucesso": returncode == 0,
+        },
+        ensure_ascii=False,
+    )
 
 
 @tool
 async def execute_bash(comando: str, config: RunnableConfig) -> str:
-    """
-    Executa um comando shell restrito ao diretório de trabalho do chat e
-    retorna o resultado estruturado. Use para ler e escrever arquivos, rodar
-    scripts Python e manipular dados.
+    """Executa um comando sem rede no sandbox privado desta conversa.
 
-    O diretório contém o acervo pedagógico do sistema: `contratos.md`,
-    `formatos-de-aula/`, `teorias/` e `templates/`. Consulte-os antes de montar
-    material.
-
-    Para validar um HTML antes de concluir, siga a skill "validar_html_pdf.md":
-    ela usa `html_pdf_tools.py`, que roda o mesmo Chromium do endpoint de
-    exportação, e `conversor_pdf_para_imagem.py` para conferir as páginas.
+    O diretório `/workspace` persiste entre chamadas e contém o acervo
+    pedagógico do sistema. A microVM usada em cada chamada é descartada ao
+    término da execução.
 
     Args:
-        comando (str): Comando a ser executado no shell (ex.: "ls -la",
-            "cat contratos.md", "python3 script.py").
+        comando: comando Bash a executar em `/workspace`.
 
     Returns:
-        str: JSON com:
-        {
-            "stdout": str,
-            "stderr": str,
-            "returncode": int,
-            "sucesso": bool
-        }
+        JSON com ``stdout``, ``stderr``, ``returncode`` e ``sucesso``.
     """
-
     if not isinstance(comando, str) or not comando.strip():
-        return json.dumps(
-            {
-                "stdout": "",
-                "stderr": "O comando deve ser uma string não vazia",
-                "returncode": -1,
-                "sucesso": False,
-            },
-            ensure_ascii=False,
-        )
+        return _result(stderr=b"O comando deve ser uma string nao vazia", returncode=-1)
 
     try:
         work_dir = await _extrai_sandbox_dir(config)
-    except (ValueError, RuntimeError) as e:
-        return json.dumps({"stdout": "", "stderr": str(e), "returncode": -1, "sucesso": False}, ensure_ascii=False,)
-    
+    except (OSError, RuntimeError, ValueError) as exc:
+        return _result(stderr=str(exc).encode(), returncode=-1)
+
     try:
-        comando_sandbox = _montar_comando_sandboxed(comando, work_dir)
-        processo = await asyncio.create_subprocess_exec(*comando_sandbox, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-        try:
-            stdout, stderr = await asyncio.wait_for(
-                processo.communicate(),
-                timeout=COMMAND_TIMEOUT_SECONDS,
-            )
-        except asyncio.TimeoutError:
-            processo.kill()
-            await processo.communicate()
-            warning = _format_warning(work_dir)
-            return json.dumps(
-                {
-                    "stdout": "",
-                    "stderr": f"Comando excedeu o tempo limite ({COMMAND_TIMEOUT_SECONDS}s)" + warning,
-                    "returncode": -1,
-                    "sucesso": False,
-                },
-                ensure_ascii=False,
-            )
-
-        resultado = {
-            "stdout": stdout.decode("utf-8", errors="replace"),
-            "stderr": stderr.decode("utf-8", errors="replace") + _format_warning(work_dir),
-            "returncode": processo.returncode,
-            "sucesso": processo.returncode == 0
-        }
-
-        return json.dumps(resultado, ensure_ascii=False)
-
-    
-    except Exception as e:
-        return json.dumps(
-            {"stdout": "", "stderr": str(e), "returncode": -1, "sucesso": False},
-            ensure_ascii=False,
+        output = await run_in_microsandbox(comando, work_dir)
+        warning = _format_warning(work_dir)
+        stderr = output.stderr + warning.encode()
+        return _result(output.stdout, stderr, output.returncode)
+    except ExecTimeoutError:
+        warning = _format_warning(work_dir)
+        message = (
+            f"Comando excedeu o tempo limite ({COMMAND_TIMEOUT_SECONDS}s){warning}"
         )
-
-'''
-if __name__ == "__main__":
-    from langchain_core.messages import HumanMessage, ToolMessage
-    from langchain_core.tools import tool
-    from langchain_openai import ChatOpenAI
-
-    config_teste: RunnableConfig = {"configurable": { "thread_id": "teste-usuario-123", "callbacks_sio": [] }}
-
-    testes_bloqueio = [
-    "cat ../../etc/passwd",
-    "cat /etc/passwd",
-    "ls /root",
-    "ls /home",
-    "cat ~/.ssh/id_rsa",
-    "cd .. && ls",
-    "ls /proc/1/environ",
-    ]
-
-    
-    for cmd in testes_bloqueio:
-        resultado = asyncio.run(execute_bash(config=config_teste, comando=cmd))
-        print(resultado)
-        status = "BLOQUEADO ✅" if not resultado["sucesso"] else "PASSOU ⚠️ FALHA DE SEGURANÇA"
-        print(f"{cmd!r:40} -> {status} | stderr={resultado['stderr'][:60]}")
-    
-
-    # Prepara um arquivo que ficará disponível apenas em workdirs/<thread>/sandbox.
-    csv_teste = (
-        "nome,idade,cidade,curso\n"
-        "Ana,21,Campina Grande,Ciência da Computação\n"
-        "Bruno,25,João Pessoa,Engenharia\n"
-        "Carla,19,Patos,Administração\n"
-        "Diego,30,Sousa,Matemática\n"
-        "Aninha,22,Campina Grande,Ciência da Computação\n"
-        "Bruna,26,João Pessoa,Engenharia\n"
-        "Carlos,20,Patos,Administração\n"
-        "Daniela,31,Sousa,Matemática\n"
-    )
-    csv_literal = csv_teste.replace("'", "'\\''").replace("\n", "\\n")
-    asyncio.run(execute_bash(config=config_teste, comando=f"printf '{csv_literal}' > dados_teste.csv",))
-
-    @tool
-    async def bash(comando: str) -> str:
-        """Executa um comando bash no sandbox. O arquivo dados_teste.csv está disponível."""
-        resultado = await execute_bash(config=config_teste, comando=comando)
-        return json.dumps(resultado, ensure_ascii=False)
-
-    async def conversar_com_llm() -> None:
-        if not os.getenv("OPENAI_API_KEY"): return
-
-        llm = ChatOpenAI(model=os.getenv("AGENT_MODEL", "gpt-5.6-luna"), reasoning={"effort": "low"},).bind_tools([bash])
-        mensagens = [HumanMessage(content=(
-            "Você é um analista de dados. Use a ferramenta bash quando precisar "
-            "ler ou transformar dados. O arquivo dados_teste.csv está no diretório "
-            "atual. Nunca tente acessar caminhos fora do sandbox."
-        ))]
-
-        print("\nAgente bash pronto. Digite uma tarefa sobre dados_teste.csv (ou 'sair').")
-        while True:
-            pedido = await asyncio.to_thread(input, "\nVocê> ")
-            if pedido.strip().lower() in {"sair", "exit", "quit"}: break
-            mensagens.append(HumanMessage(content=pedido))
-
-            while True:
-                resposta = await llm.ainvoke(mensagens)
-                mensagens.append(resposta)
-                chamadas = getattr(resposta, "tool_calls", [])
-                if not chamadas:
-                    print(f"LLM> {resposta.content[0]["text"]}")
-                    break
-                for chamada in chamadas:
-                    argumentos = chamada.get("args", {})
-                    resultado = await bash.ainvoke(argumentos)
-                    mensagens.append(ToolMessage(content=resultado, tool_call_id=chamada["id"],))
-
-    asyncio.run(conversar_com_llm())
-'''
+        return _result(stderr=message.encode(), returncode=-1)
+    except TimeoutError:
+        warning = _format_warning(work_dir)
+        return _result(
+            stderr=(
+                "A inicializacao ou execucao do sandbox excedeu o tempo limite"
+                f"{warning}"
+            ).encode(),
+            returncode=-1,
+        )
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        warning = _format_warning(work_dir)
+        return _result(stderr=f"{exc}{warning}".encode(), returncode=-1)

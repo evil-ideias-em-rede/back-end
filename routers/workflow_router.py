@@ -307,6 +307,16 @@ def _is_non_empty_file(path: Path) -> bool:
         return False
 
 
+def _has_non_blank_text(path: Path) -> bool:
+    """Retorna verdadeiro somente para um arquivo regular com texto visível."""
+    if path.is_symlink() or not _is_non_empty_file(path):
+        return False
+    try:
+        return bool(path.read_text(encoding="utf-8").strip())
+    except (OSError, UnicodeDecodeError):
+        return False
+
+
 def _graph_config(session_id: str, agent_name: str | None = None) -> dict:
     configurable = {
         "thread_id": _workflow_chat_id(session_id),
@@ -689,6 +699,24 @@ async def get_workflow_session(
 ):
     await _ensure_session_access(session_id, user)
     return await _ensure_session(session_id)
+
+
+@router.get("/sessions/{session_id}/html/exists", response_model=bool)
+async def workflow_html_exists(
+    session_id: str,
+    user: CurrentUser | None = Depends(get_optional_current_user),
+):
+    """Informa se a sessão possui um ``HTML.html`` com conteúdo não vazio."""
+    await _ensure_session_access(session_id, user)
+    try:
+        memory_store.snapshot(session_id)
+    except KeyError:
+        # Após reiniciar o servidor, restaura a sessão e seus arquivos uma vez.
+        # Nas consultas seguintes apenas lê o sandbox, sem sobrescrever um HTML
+        # que o agente possa estar produzindo naquele momento.
+        await _ensure_session(session_id)
+    html_path = _workflow_workspace(session_id) / "sandbox" / "HTML.html"
+    return _has_non_blank_text(html_path)
 
 
 @router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -9,6 +9,7 @@ APP_GID="${BACKEND_GID:-1000}"
 INDEX_DIR="/app/graph/tools/retrieval/indice"
 INDEX_FILE="${INDEX_DIR}/indice_busca.sqlite"
 INDEX_DRIVE_FOLDER_URL="https://drive.google.com/drive/folders/16tgqKuWKXBBUwYrAJRKuU1pj38yKPAGs"
+MICROSANDBOX_DIR="${MSB_HOME:-/app/microsandbox}"
 
 # O container inicia como root, mas o servidor é reduzido para APP_UID.
 # Evita que clientes PostgreSQL tentem acessar /root/.postgresql.
@@ -16,6 +17,7 @@ export HOME=/tmp
 
 mkdir -p /app/workdirs
 mkdir -p "${INDEX_DIR}"
+mkdir -p "${MICROSANDBOX_DIR}"
 
 if [[ ! -f "${INDEX_FILE}" ]]; then
   echo "indice_busca.sqlite ausente; baixando o indice do Google Drive..."
@@ -29,6 +31,7 @@ fi
 
 chown "${APP_UID}:${APP_GID}" /app/workdirs
 chown -R "${APP_UID}:${APP_GID}" "${INDEX_DIR}"
+chown -R "${APP_UID}:${APP_GID}" "${MICROSANDBOX_DIR}"
 # Alguns bind mounts recusam chmod mesmo quando já estão com o modo correto.
 # Isso não deve impedir a API de iniciar após a posse ter sido corrigida.
 chmod 0755 /app/workdirs 2>/dev/null || true
@@ -38,8 +41,20 @@ chmod 0755 /app/workdirs 2>/dev/null || true
 find /app/workdirs -type d -exec chmod u+rwx {} + 2>/dev/null || true
 find /app/workdirs -type f -exec chmod u+rw {} + 2>/dev/null || true
 
+SANDBOX_GROUP_ARGS=(--clear-groups)
+if [[ -e /dev/kvm ]]; then
+  SANDBOX_GROUP_ARGS=(--groups "$(stat -c '%g' /dev/kvm)")
+fi
+
+echo "Preparando imagem do microsandbox..."
+setpriv \
+  --reuid="${APP_UID}" \
+  --regid="${APP_GID}" \
+  "${SANDBOX_GROUP_ARGS[@]}" \
+  python -m sandbox.ensure_image
+
 exec setpriv \
   --reuid="${APP_UID}" \
   --regid="${APP_GID}" \
-  --clear-groups \
+  "${SANDBOX_GROUP_ARGS[@]}" \
   "$@"

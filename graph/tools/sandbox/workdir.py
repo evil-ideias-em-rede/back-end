@@ -205,8 +205,8 @@ async def _extrai_sandbox_dir(config: RunnableConfig) -> str:
             except PermissionError as exc:
                 raise RuntimeError("A aplicação não possui permissão para preparar o diretório do sandbox") from exc
 
-        # O user namespace mapeia o UID 65534 visto dentro do sandbox para o UID da aplicação fora dele. Assim, 0700 continua gravável no bwrap
-        # sem liberar acesso para outros usuários do container.
+        # O diretório pertence à aplicação e é montado somente na microVM
+        # efêmera desta conversa.
         sandbox_dir.chmod(0o700)
 
     return str(sandbox_dir.resolve())
