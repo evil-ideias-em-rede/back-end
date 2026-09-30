@@ -1,0 +1,88 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	router(router)
+	brainstorm_node(brainstorm_node)
+	lesson_plan_node(lesson_plan_node)
+	debate_outline_node(debate_outline_node)
+	political_leteracy_node(political_leteracy_node)
+	generic_activity_node(generic_activity_node)
+	general_editor_node(general_editor_node)
+	writing_workshop_node(writing_workshop_node)
+	slides_node(slides_node)
+	tools(tools)
+	editor_tools(editor_tools)
+	brainstorm_tools(brainstorm_tools)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> router;
+	brainstorm_node -. &nbsp;end&nbsp; .-> __end__;
+	brainstorm_node -.-> brainstorm_tools;
+	brainstorm_node -.-> editor_tools;
+	brainstorm_node -.-> tools;
+	brainstorm_tools -.-> brainstorm_node;
+	brainstorm_tools -.-> debate_outline_node;
+	brainstorm_tools -.-> general_editor_node;
+	brainstorm_tools -.-> generic_activity_node;
+	brainstorm_tools -.-> lesson_plan_node;
+	brainstorm_tools -.-> political_leteracy_node;
+	brainstorm_tools -.-> slides_node;
+	brainstorm_tools -.-> writing_workshop_node;
+	debate_outline_node -. &nbsp;end&nbsp; .-> __end__;
+	debate_outline_node -.-> brainstorm_tools;
+	debate_outline_node -.-> editor_tools;
+	debate_outline_node -.-> tools;
+	editor_tools -.-> brainstorm_node;
+	editor_tools -.-> debate_outline_node;
+	editor_tools -.-> general_editor_node;
+	editor_tools -.-> generic_activity_node;
+	editor_tools -.-> lesson_plan_node;
+	editor_tools -.-> political_leteracy_node;
+	editor_tools -.-> slides_node;
+	editor_tools -.-> writing_workshop_node;
+	general_editor_node -. &nbsp;end&nbsp; .-> __end__;
+	general_editor_node -.-> brainstorm_tools;
+	general_editor_node -.-> editor_tools;
+	general_editor_node -.-> tools;
+	generic_activity_node -. &nbsp;end&nbsp; .-> __end__;
+	generic_activity_node -.-> brainstorm_tools;
+	generic_activity_node -.-> editor_tools;
+	generic_activity_node -.-> tools;
+	lesson_plan_node -. &nbsp;end&nbsp; .-> __end__;
+	lesson_plan_node -.-> brainstorm_tools;
+	lesson_plan_node -.-> editor_tools;
+	lesson_plan_node -.-> tools;
+	political_leteracy_node -. &nbsp;end&nbsp; .-> __end__;
+	political_leteracy_node -.-> brainstorm_tools;
+	political_leteracy_node -.-> editor_tools;
+	political_leteracy_node -.-> tools;
+	router -.-> brainstorm_node;
+	router -.-> debate_outline_node;
+	router -.-> general_editor_node;
+	router -.-> generic_activity_node;
+	router -.-> lesson_plan_node;
+	router -.-> political_leteracy_node;
+	router -.-> slides_node;
+	router -.-> writing_workshop_node;
+	slides_node -. &nbsp;end&nbsp; .-> __end__;
+	slides_node -.-> brainstorm_tools;
+	slides_node -.-> editor_tools;
+	slides_node -.-> tools;
+	tools -.-> brainstorm_node;
+	tools -.-> debate_outline_node;
+	tools -.-> general_editor_node;
+	tools -.-> generic_activity_node;
+	tools -.-> lesson_plan_node;
+	tools -.-> political_leteracy_node;
+	tools -.-> slides_node;
+	tools -.-> writing_workshop_node;
+	writing_workshop_node -. &nbsp;end&nbsp; .-> __end__;
+	writing_workshop_node -.-> brainstorm_tools;
+	writing_workshop_node -.-> editor_tools;
+	writing_workshop_node -.-> tools;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc

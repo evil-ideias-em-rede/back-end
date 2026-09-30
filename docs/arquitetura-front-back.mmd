@@ -1,0 +1,111 @@
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "Arial, sans-serif", "fontSize": "15px", "primaryTextColor": "#172033", "lineColor": "#64748b"}, "flowchart": {"curve": "linear", "nodeSpacing": 30, "rankSpacing": 50, "htmlLabels": false, "wrappingWidth": 500}, "htmlLabels": false, "markdownAutoWrap": false}}%%
+flowchart TB
+    subgraph FRONT["Frontend — React + TypeScript / Vite"]
+        USER["Professor"]
+        SUGGEST["SuggestPage<br/>Brainstorm, audiências e confirmação da fonte"]
+        EDIT["MaterialEditorPage + HtmlCanvas<br/>Chat, HTML em iframe e edição manual"]
+        CLIENT["api/client.ts — fetch<br/>JSON ou multipart/form-data<br/>JWT no header Authorization, quando autenticado"]
+        USER --> SUGGEST & EDIT
+        SUGGEST <-->|"mensagem, agente, audiência visualizada"| CLIENT
+        EDIT <-->|"pedido de edição, HTML atual, user_edited"| CLIENT
+    end
+
+    CLIENT <-->|"HTTP: solicitações e respostas"| PROXY["Nginx na instalação Docker<br/>Serve a interface e encaminha /api<br/>No desenvolvimento, acesso à API configurada"]
+
+    subgraph BACK["Backend — FastAPI / Python"]
+        API["Rotas da API<br/>Validação de payload e acesso à sessão"]
+        SESSION["Sessões e fontes<br/>Criar sessão, consultar audiências e planning<br/>Confirmar seleção e validar avanço"]
+        MSG["Mensagens do workflow<br/>POST .../messages<br/>POST .../editor/messages"]
+        FILES["Arquivos da sessão<br/>POST .../files — multipart<br/>GET .../html, .../planning e .../html/exists"]
+        EXPORT["Exportação por serviços do backend<br/>HTML atual enviado por multipart<br/>HTML / PDF / DOCX / PPTX"]
+        PREP["Orquestração do turno<br/>Histórico + contexto pedagógico autorizado<br/>Prepara workspace, executa e persiste resultado"]
+        MEMORY["InMemoryWorkflowStore<br/>Cache de sessão e mensagens"]
+        GRAPH["LangGraph<br/>Router → agente selecionado ↔ ToolNode<br/>Histórico reconstruído a cada turno"]
+        TOOLS["ToolNode selecionado<br/>Despacha nome e argumentos da chamada<br/>Devolve ToolMessage ao agente"]
+        SYNC["workflow_files<br/>Restaura e persiste arquivos da sessão"]
+
+        API <-->|"requisições e respostas"| SESSION & MSG & FILES & EXPORT
+        MSG -->|"text, agent_name, hidden e flags do endpoint"| PREP
+        PREP <-->|"histórico da sessão"| MEMORY
+        PREP -->|"ChatGraphState + RunnableConfig"| GRAPH
+        GRAPH -->|"texto final"| PREP
+        PREP -->|"session_id, message e html_url"| MSG
+        GRAPH <-->|"tool_calls e resultados"| TOOLS
+        PREP -->|"antes e ao terminar a execução"| SYNC
+        FILES -->|"persistência após upload"| SYNC
+    end
+
+    PROXY <-->|"proxy HTTP"| API
+
+    subgraph TOOLSET["Ferramentas executadas pelo backend — disponibilidade depende do modo"]
+        VECTOR["buscar_audiencias<br/>Busca vetorial na matéria completa"]
+        SQL["consultar_audiencias_sql<br/>Pergunta → SQL gerado por LLM<br/>Validação de SELECT e tabelas permitidas"]
+        AUDIENCE["consultar_audiencia_por_id<br/>Resumo, falas, transcrição ou propostas<br/>Leitura por seção e páginas"]
+        REFS["consultar_bncc / consultar_acervo<br/>consultar_templates<br/>consultar_materiais_professor"]
+        WEB["web_search<br/>Consulta externa via Tavily"]
+        SHELL["Ferramenta de shell do modo<br/>execute_brainstorm_planning<br/>execute_planning_restricted ou execute_bash"]
+    end
+
+    TOOLS <--> VECTOR & SQL & AUDIENCE & REFS & WEB & SHELL
+
+    subgraph EXTERNAL["Serviços externos — chamadas feitas pelo backend"]
+        LLM["LLM de geração configurada<br/>OpenAI: Responses API<br/>DeepInfra: Chat Completions"]
+        EMB["Embeddings OpenAI<br/>text-embedding-3-small por padrão"]
+        TAVILY["Tavily<br/>Resultados com texto e URLs"]
+    end
+
+    GRAPH <-->|"prompt, histórico, schemas ↔ texto e chamadas"| LLM
+    SQL <-->|"pergunta + schema ↔ SELECT"| LLM
+    VECTOR <-->|"pergunta ↔ vetor da consulta"| EMB
+    WEB <-->|"query ↔ resultados"| TAVILY
+
+    subgraph DATA["Dados e arquivos persistentes"]
+        PG[("PostgreSQL<br/>Sessões, mensagens, dono e contexto do professor<br/>Templates, materiais e snapshots de arquivos")]
+        INDEX[("SQLite — indice_busca.sqlite<br/>sqlite-vec: audiencias_vec<br/>Tabelas audiencias e documentos")]
+        CORPUS[("Corpus local<br/>PublicHearingBR_LDS.jsonl<br/>CSV.gz: somente categoria anotado")]
+        PUBLIC["Acervo pedagógico local<br/>BNCC em CSV, teorias, formatos e guias<br/>Templates padrão"]
+        WORKSPACE[("workdirs/ID/sandbox<br/>planning.json, audiencia.json, HTML.html<br/>Referências, templates e arquivos auxiliares")]
+    end
+
+    PREP <-->|"histórico persistido e contexto do professor"| PG
+    SESSION <-->|"sessão, proprietário e audiência selecionada"| PG
+    SESSION <-->|"catálogo e detalhes da fonte"| CORPUS & INDEX
+    SESSION -->|"prepara diretório e salva audiencia.json na confirmação"| WORKSPACE
+    FILES <-->|"upload e leitura de artefatos"| WORKSPACE
+    SYNC <-->|"caminho relativo e bytes"| PG
+    SYNC <-->|"snapshot e restauração"| WORKSPACE
+    VECTOR <-->|"KNN por cosseno e metadados"| INDEX
+    VECTOR -. "matéria de origem como fallback" .-> CORPUS
+    SQL <-->|"SELECT ↔ linhas estruturadas"| INDEX
+    AUDIENCE <-->|"leitura por ID"| CORPUS
+    AUDIENCE -. "fallback de estrutura" .-> INDEX
+    REFS <-->|"conteúdo público e padrões"| PUBLIC
+    REFS <-->|"templates e anexos autorizados do professor"| PG
+
+    subgraph ISOLATION["Execução de código — microsandbox / KVM"]
+        SCOPE["Prepara o volume conforme o modo<br/>Brainstorm: só planning.json<br/>Geração: planning.json e HTML.html<br/>Editor: diretório completo da sessão"]
+        VM["MicroVM descartável por chamada<br/>Bash / Python em /workspace<br/>Sem rede; 1 CPU; 1 GiB RAM<br/>Timeout do comando: 300 s"]
+        SCOPE -->|"volume permitido + comando"| VM
+    end
+
+    SHELL -->|"comando Bash"| SCOPE
+    SCOPE <-->|"montagem direta ou cópia e sincronização dos arquivos permitidos"| WORKSPACE
+    VM -->|"stdout, stderr, returncode, sucesso"| SHELL
+
+    NOTE["O frontend atual usa HTTP e polling de presença do HTML.<br/>A resposta do chat e o arquivo HTML são obtidos separadamente.<br/>As chamadas de IA e de rede ocorrem fora da microVM."]
+    NOTE -.-> CLIENT
+
+    classDef front fill:#eaf2ff,stroke:#2563eb,color:#172033;
+    classDef backend fill:#e7f6f3,stroke:#0f766e,color:#172033;
+    classDef tool fill:#fff5db,stroke:#b7791f,color:#172033;
+    classDef external fill:#f2eaff,stroke:#7c3aed,color:#172033;
+    classDef storage fill:#ecfdf3,stroke:#15803d,color:#172033;
+    classDef isolation fill:#fff1ed,stroke:#c2410c,color:#172033;
+    classDef note fill:#f8fafc,stroke:#94a3b8,color:#334155;
+    class USER,SUGGEST,EDIT,CLIENT front;
+    class PROXY,API,SESSION,MSG,FILES,EXPORT,PREP,MEMORY,GRAPH,TOOLS,SYNC backend;
+    class VECTOR,SQL,AUDIENCE,REFS,WEB,SHELL tool;
+    class LLM,EMB,TAVILY external;
+    class PG,INDEX,CORPUS,PUBLIC,WORKSPACE storage;
+    class SCOPE,VM isolation;
+    class NOTE note;

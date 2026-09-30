@@ -5,6 +5,24 @@ materiais e os agentes de criação/edição em uma instalação independente.
 O Compose de instalação inclui PostgreSQL, backend e frontend estático com
 proxy HTTP/WebSocket. Não é necessário instalar Python, Node ou PostgreSQL no host.
 
+## Arquitetura
+
+O diagrama mostra a comunicação entre frontend, API, agente, ferramentas,
+fontes de dados e sandbox de execução.
+
+![Arquitetura frontend/backend do Contraponto](docs/arquitetura-front-back.svg)
+
+### Agente LangGraph
+
+Grafo exportado diretamente com `GRAPH_BUILDER.get_graph().draw_mermaid()`.
+As setas condicionais mostram os destinos declarados; durante a execução,
+o roteamento escolhe o caminho conforme o estado da conversa.
+
+![Grafo do agente Contraponto gerado pelo LangGraph](docs/agente-langgraph-gerado.svg)
+
+Consulte a [documentação da arquitetura](docs/arquitetura-contraponto.md)
+para os endpoints, os dados enviados e as ferramentas disponíveis em cada modo.
+
 ## Requisitos
 
 - Linux **x86_64**, Docker Engine e plugin Docker Compose v2 recente (com `up --wait`).

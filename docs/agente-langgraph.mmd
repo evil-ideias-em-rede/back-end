@@ -1,0 +1,55 @@
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "Arial, sans-serif", "fontSize": "15px", "primaryTextColor": "#172033", "lineColor": "#64748b"}, "flowchart": {"curve": "linear", "nodeSpacing": 24, "rankSpacing": 44, "htmlLabels": false, "wrappingWidth": 500}, "htmlLabels": false, "markdownAutoWrap": false}}%%
+flowchart TB
+    INPUT["Estado do turno — ChatGraphState<br/>messages, context, agent_name, editor_mode, user_edited<br/>Identidade e workspace definidos pelo backend"]
+    START_NODE(("START")) --> ROUTER["router — router_state<br/>Valida agent_name e fixa selected_agent"]
+    INPUT -. "estado inicial" .-> ROUTER
+    ROUTER --> DISPATCH{"route_to_agent<br/>selected_agent"}
+
+    subgraph AGENTS["Nós especializados — apenas um é selecionado em cada turno"]
+        BRAIN["brainstorm_node<br/>Exploração e planejamento"]
+        LESSON["lesson_plan_node<br/>Plano de aula"]
+        DEBATE["debate_outline_node<br/>Roteiro de debate"]
+        POLITICAL["political_leteracy_node<br/>Letramento político"]
+        GENERIC["generic_activity_node<br/>Atividade livre"]
+        EDITOR["general_editor_node<br/>Editor geral e templates"]
+        WRITING["writing_workshop_node<br/>Oficina de redação"]
+        SLIDES["slides_node<br/>Apresentação"]
+    end
+
+    DISPATCH --> BRAIN & LESSON & DEBATE & POLITICAL & GENERIC & EDITOR & WRITING & SLIDES
+    BRAIN & LESSON & DEBATE & POLITICAL & GENERIC & EDITOR & WRITING & SLIDES --> RUN
+
+    RUN["run_agent — implementação compartilhada dos nós<br/>Prompt do papel e do modo + contexto + histórico<br/>bind_tools com as ferramentas disponíveis naquele modo"]
+    RUN -->|"mensagens e schemas de ferramentas"| LLM["Modelo configurado<br/>OpenAI ou DeepInfra"]
+    LLM -->|"chunks acumulados em AIMessage"| ANSWER["Atualiza messages<br/>Texto e/ou tool_calls"]
+    ANSWER --> HAS_TOOLS{"Há tool_calls?"}
+    HAS_TOOLS -->|"não"| END_NODE(("END"))
+    HAS_TOOLS -->|"sim"| MODE{"route_after_agent<br/>Qual o modo do turno?"}
+
+    MODE -->|"selected_agent = brainstorm_node"| BTOOLS
+    MODE -->|"outro agente e editor_mode = true"| ETOOLS
+    MODE -->|"outro agente e editor_mode = false"| GTOOLS
+
+    BTOOLS["ToolNode: brainstorm_tools<br/>execute_brainstorm_planning<br/>Busca, SQL e leitura de audiências<br/>BNCC, templates, acervo e materiais do professor"]
+    ETOOLS["ToolNode: editor_tools<br/>execute_bash + web_search<br/>BNCC, templates, acervo e materiais do professor"]
+    GTOOLS["ToolNode: tools<br/>execute_planning_restricted + execute_bash*<br/>Busca, SQL e leitura de audiências + web_search<br/>BNCC, templates, acervo e materiais do professor"]
+
+    BTOOLS & ETOOLS & GTOOLS --> RESULTS["Resultados como ToolMessage<br/>Acrescentados ao estado messages"]
+    RESULTS -->|"volta ao mesmo selected_agent"| DISPATCH
+    END_NODE --> OUTPUT["API recebe a resposta final<br/>Persistência e entrega ficam fora do grafo"]
+
+    NOTE["O router usa a escolha enviada pela aplicação.<br/>A troca brainstorm → agente final ocorre em outro turno.<br/>run_agent não é um nó adicional registrado no grafo.<br/>* execute_bash está registrado em tools, mas a geração<br/>normal anuncia execute_planning_restricted ao modelo."]
+    NOTE -.-> ROUTER
+
+    classDef agent fill:#eaf2ff,stroke:#2563eb,color:#172033;
+    classDef decision fill:#e7f6f3,stroke:#0f766e,color:#172033;
+    classDef tool fill:#fff5db,stroke:#b7791f,color:#172033;
+    classDef model fill:#f2eaff,stroke:#7c3aed,color:#172033;
+    classDef note fill:#f8fafc,stroke:#94a3b8,color:#334155;
+    classDef result fill:#ecfdf3,stroke:#15803d,color:#172033;
+    class BRAIN,LESSON,DEBATE,POLITICAL,GENERIC,EDITOR,WRITING,SLIDES agent;
+    class ROUTER,DISPATCH,HAS_TOOLS,MODE decision;
+    class BTOOLS,ETOOLS,GTOOLS tool;
+    class RUN,LLM model;
+    class INPUT,NOTE note;
+    class ANSWER,RESULTS,OUTPUT result;
