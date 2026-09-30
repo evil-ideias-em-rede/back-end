@@ -54,8 +54,9 @@ from schemas import (
     TurmaUpdateIn,
 )
 from graph.tools.retrieval.audiencias import listar_audiencias, consultar_audiencia
+from graph.tools.sandbox.shared.html_page_contract import PaginationError
 from graph.tools.sandbox.shared.html_pdf_tools import render_html_to_pdf
-from services.html_to_docx import HtmlToDocxError, convert_html_bytes_to_docx
+from services.html_to_docx import HtmlToDocxError, convert_paginated_html_bytes_to_docx
 from services.pdf_to_html import PdfConversionError, convert_pdf_bytes_to_html
 
 
@@ -111,14 +112,14 @@ def _pdf_to_html(content: bytes) -> bytes:
         return _pdf_to_html_fallback(content)
 
 
-def _first_page_png(content: bytes, source_type: str = "html") -> bytes:
+def _first_page_png(content: bytes, source_type: str = "html", orientation: str = "V") -> bytes:
     """Retorna uma miniatura PNG da primeira página do conteúdo."""
     with tempfile.TemporaryDirectory(prefix="preview-thumbnail-") as tmpdir:
         if source_type == "pdf":
             pdf_content = content
         else:
             pdf_path = Path(tmpdir) / "preview.pdf"
-            render_html_to_pdf(content, pdf_path, "V", tmpdir)
+            render_html_to_pdf(content, pdf_path, orientation, tmpdir, fit_overflow=True)
             pdf_content = pdf_path.read_bytes()
 
         document = fitz.open(stream=pdf_content, filetype="pdf")
@@ -132,12 +133,14 @@ def _first_page_png(content: bytes, source_type: str = "html") -> bytes:
             document.close()
 
 
-async def _cached_first_page_png(cache_key: str, content: bytes, source_type: str = "html") -> bytes:
+async def _cached_first_page_png(
+    cache_key: str, content: bytes, source_type: str = "html", orientation: str = "V",
+) -> bytes:
     async with _thumbnail_lock:
         cached = _thumbnail_cache.get(cache_key)
         if cached is not None:
             return cached
-        thumbnail = await asyncio.to_thread(_first_page_png, content, source_type)
+        thumbnail = await asyncio.to_thread(_first_page_png, content, source_type, orientation)
         if len(_thumbnail_cache) >= 64:
             _thumbnail_cache.pop(next(iter(_thumbnail_cache)))
         _thumbnail_cache[cache_key] = thumbnail
@@ -439,22 +442,30 @@ async def download_template(
         with tempfile.TemporaryDirectory(prefix="template-download-") as tmpdir:
             pdf_path = Path(tmpdir) / "template.pdf"
             try:
-                await asyncio.to_thread(render_html_to_pdf, html_content, pdf_path, "V", tmpdir)
+                await asyncio.to_thread(render_html_to_pdf, html_content, pdf_path, "V", tmpdir, fit_overflow=True)
                 content = pdf_path.read_bytes()
             except subprocess.TimeoutExpired as exc:
                 raise HTTPException(status_code=504, detail="A conversão para PDF excedeu o tempo limite") from exc
             except FileNotFoundError as exc:
                 raise HTTPException(status_code=503, detail="O conversor de PDF não está disponível") from exc
+            except PaginationError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
             except RuntimeError as exc:
                 raise HTTPException(status_code=502, detail=str(exc)) from exc
     else:
         try:
             content = await asyncio.to_thread(
-                convert_html_bytes_to_docx,
+                convert_paginated_html_bytes_to_docx,
                 html_content,
                 row["title"] or "template",
             )
-        except HtmlToDocxError as exc:
+        except subprocess.TimeoutExpired as exc:
+            raise HTTPException(status_code=504, detail="A conversão para DOCX excedeu o tempo limite") from exc
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=503, detail="O conversor de DOCX não está disponível") from exc
+        except PaginationError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except (HtmlToDocxError, RuntimeError) as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     base_name = _safe_name(Path(row["file_name"] or row["title"]).stem)
@@ -608,14 +619,17 @@ async def thumbnail_material(material_id: UUID, user: CurrentUser = Depends(get_
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="O conteúdo do material está vazio")
     try:
         thumbnail = await _cached_first_page_png(
-            f"material:{material_id}:{row['updated_at']}",
+            f"material:{material_id}:{row['updated_at']}:{row['orientation']}",
             source_content,
             source_type,
+            row["orientation"],
         )
     except subprocess.TimeoutExpired as exc:
         raise HTTPException(status_code=504, detail="A prévia excedeu o tempo limite") from exc
     except FileNotFoundError as exc:
         raise HTTPException(status_code=503, detail="O conversor de PDF não está disponível") from exc
+    except PaginationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except (RuntimeError, ValueError, OSError) as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return Response(content=thumbnail, media_type="image/png", headers={"Cache-Control": "private, max-age=300"})
@@ -648,12 +662,16 @@ async def download_material(
         with tempfile.TemporaryDirectory(prefix="material-download-") as tmpdir:
             pdf_path = Path(tmpdir) / "material.pdf"
             try:
-                await asyncio.to_thread(render_html_to_pdf, html_content, pdf_path, row["orientation"], tmpdir)
+                await asyncio.to_thread(
+                    render_html_to_pdf, html_content, pdf_path, row["orientation"], tmpdir, fit_overflow=True,
+                )
                 content = pdf_path.read_bytes()
             except subprocess.TimeoutExpired as exc:
                 raise HTTPException(status_code=504, detail="A conversão para PDF excedeu o tempo limite") from exc
             except FileNotFoundError as exc:
                 raise HTTPException(status_code=503, detail="O conversor de PDF não está disponível") from exc
+            except PaginationError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
             except RuntimeError as exc:
                 raise HTTPException(status_code=502, detail=str(exc)) from exc
     elif source_type == "html" and format == "docx":
@@ -662,11 +680,18 @@ async def download_material(
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="O HTML do material está vazio")
         try:
             content = await asyncio.to_thread(
-                convert_html_bytes_to_docx,
+                convert_paginated_html_bytes_to_docx,
                 html_content,
                 row["title"] or "material",
+                row["orientation"],
             )
-        except HtmlToDocxError as exc:
+        except subprocess.TimeoutExpired as exc:
+            raise HTTPException(status_code=504, detail="A conversão para DOCX excedeu o tempo limite") from exc
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=503, detail="O conversor de DOCX não está disponível") from exc
+        except PaginationError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except (HtmlToDocxError, RuntimeError) as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
     else:
         raise HTTPException(
