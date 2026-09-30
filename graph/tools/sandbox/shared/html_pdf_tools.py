@@ -70,7 +70,7 @@ def html_for_pdf(html_content: bytes, orientation: Literal["V", "H"] = "V") -> b
     overrides = PDF_PRINT_OVERRIDES.replace("size: A4;", f"size: {page_size};")
     head_end = html.lower().find("</head>")
     if head_end < 0:
-        return f"{overrides}{html}".encode("utf-8")
+        return f'<meta charset="utf-8">{overrides}{html}'.encode("utf-8")
     return f"{html[:head_end]}{overrides}{html[head_end:]}".encode("utf-8")
 
 
@@ -93,6 +93,7 @@ def render_html_to_pdf(
     output_pdf: str | os.PathLike[str],
     orientation: Literal["V", "H"] = "V",
     work_dir: str | os.PathLike[str] | None = None,
+    fit_overflow: bool = False,
 ) -> Path:
     """Renderiza HTML com Chromium usando exatamente o fluxo de exportação."""
     output_path = Path(output_pdf).resolve()
@@ -110,7 +111,7 @@ def render_html_to_pdf(
             delete=False,
         ) as html_file:
             html_file.write(html_for_pdf(html_content, orientation))
-            html_file.write(validation_script(orientation).encode("utf-8"))
+            html_file.write(validation_script(orientation, fit_overflow=fit_overflow).encode("utf-8"))
             html_path = Path(html_file.name)
 
         with tempfile.TemporaryDirectory(prefix="chromium-profile-", dir=temporary_dir) as profile_dir:
@@ -146,6 +147,7 @@ def render_html_to_pdf(
                     "--disable-dev-shm-usage",
                     "--allow-file-access-from-files",
                     f"--user-data-dir={profile_path}",
+                    "--virtual-time-budget=3000",
                     "--no-pdf-header-footer",
                     f"--print-to-pdf={output_path}",
                     str(html_path),

@@ -8,7 +8,7 @@ class PaginationError(RuntimeError):
     pass
 
 
-def validation_script(orientation: str) -> str:
+def validation_script(orientation: str, fit_overflow: bool = False) -> str:
     width, height = (297, 210) if orientation == "H" else (210, 297)
     script = r"""
 <script>
@@ -16,6 +16,34 @@ window.addEventListener('load', async function () {
   await document.fonts.ready;
   const errors = [];
   const pages = Array.from(document.querySelectorAll('[data-ied-page]'));
+  if (FIT_OVERFLOW && pages.length) {
+    pages.forEach(function (page) {
+      const style = getComputedStyle(page);
+      const origin = page.getBoundingClientRect();
+      const content = [...page.querySelectorAll('*')].filter(function (el) {
+        return el instanceof HTMLElement && el.getClientRects().length;
+      });
+      const contentWidth = Math.max(origin.width, ...content.map(function (el) {
+        return el.getBoundingClientRect().right - origin.left;
+      }).map(function (right) { return right + parseFloat(style.paddingRight); }));
+      const contentHeight = Math.max(origin.height, ...content.map(function (el) {
+        return el.getBoundingClientRect().bottom - origin.top;
+      }).map(function (bottom) { return bottom + parseFloat(style.paddingBottom); }));
+      const scale = Math.min(1, origin.width / contentWidth, origin.height / contentHeight);
+      // Ajustes muito grandes tornam a folha ilegível e continuam sendo
+      // rejeitados. O autoajuste existe para pequenas variações de fonte e
+      // conteúdo editado, não para esconder erros graves de paginação.
+      if (scale < 0.998 && scale >= 0.8 && style.zoom === '1' && style.transform === 'none') {
+        // Zoom participa do layout de impressão; transform deixava espaço
+        // não escalado e criava folhas extras. Preserve os seletores CSS
+        // existentes: não adicione wrappers aos filhos da página.
+        page.style.setProperty('zoom', String(scale), 'important');
+        page.style.setProperty('height', origin.height / scale + 'px', 'important');
+        page.style.setProperty('max-height', 'none', 'important');
+        page.setAttribute('data-workflow-page-scale', String(scale));
+      }
+    });
+  }
   if (pages.length) {
     const probe = document.createElement('div');
     probe.style.cssText = 'position:absolute;visibility:hidden;width:WIDTHmm;height:HEIGHTmm;box-sizing:border-box;padding:0;border:0';
@@ -66,7 +94,11 @@ window.addEventListener('load', async function () {
 });
 </script>
 """
-    return script.replace("WIDTH", str(width)).replace("HEIGHT", str(height))
+    return (
+        script.replace("WIDTH", str(width))
+        .replace("HEIGHT", str(height))
+        .replace("FIT_OVERFLOW", "true" if fit_overflow else "false")
+    )
 
 
 def read_validation_result(dom: str) -> int:

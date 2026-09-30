@@ -59,10 +59,46 @@ class BrowserPaginationTest(unittest.TestCase):
             '<main><section data-ied-page="1">Aninhada</section></main>',
             '<nav>Sumário fora da página</nav><section data-ied-page="1">A</section>',
         ]
-        for content in cases:
-            with self.subTest(content=content), tempfile.TemporaryDirectory() as directory:
-                with self.assertRaises(PaginationError):
-                    render_html_to_pdf(document(content), Path(directory) / "test.pdf")
+        for fit in (False, True):
+            for content in cases:
+                with self.subTest(content=content, fit=fit), tempfile.TemporaryDirectory() as directory:
+                    with self.assertRaises(PaginationError):
+                        render_html_to_pdf(document(content), Path(directory) / "test.pdf", fit_overflow=fit)
+
+    def test_export_can_fit_moderate_page_overflow(self):
+        import pymupdf
+        content = '''<style>
+        section > .grid {display:grid;gap:8px}
+        .block {height:27mm;border:1px solid black}
+        </style><section data-ied-page="1"><p>Primeira intacta</p></section>
+        <section data-ied-page="2"><div class="grid">''' + ''.join(
+            f'<div class="block">Bloco {index} completo</div>' for index in range(10)
+        ) + '''</div><p>Último trecho da segunda</p></section>
+        <section data-ied-page="3"><p>Terceira intacta</p></section>'''
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaises(PaginationError):
+                render_html_to_pdf(document(content), Path(directory) / "strict.pdf")
+            output = render_html_to_pdf(
+                document(content),
+                Path(directory) / "test.pdf",
+                fit_overflow=True,
+            )
+            with pymupdf.open(output) as pdf:
+                self.assertEqual(pdf.page_count, 3)
+                self.assertIn("Primeira intacta", pdf[0].get_text())
+                for index in range(10):
+                    self.assertIn(f"Bloco {index} completo", pdf[1].get_text())
+                self.assertIn("Último trecho da segunda", pdf[1].get_text())
+                self.assertIn("Terceira intacta", pdf[2].get_text())
+
+    def test_fitting_does_not_change_valid_layout(self):
+        import pymupdf
+        html = document('''<style>section > p {margin:0;font-size:18px}</style>
+            <section data-ied-page="1"><p>Texto preservado</p></section>''')
+        with tempfile.TemporaryDirectory() as directory:
+            outputs = [render_html_to_pdf(html, Path(directory) / f"{fit}.pdf", fit_overflow=fit) for fit in (False, True)]
+            with pymupdf.open(outputs[0]) as original, pymupdf.open(outputs[1]) as fitted:
+                self.assertEqual(original[0].get_text("words"), fitted[0].get_text("words"))
 
     def test_legacy_without_markers_still_exports(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import io
 import re
+import subprocess
 import tempfile
 from pathlib import Path
 
@@ -19,6 +20,8 @@ from docx.oxml import parse_xml
 from docx.oxml.ns import nsdecls, qn
 from docx.shared import Emu, Mm, Pt, RGBColor
 from PIL import Image
+from graph.tools.sandbox.shared.html_pdf_tools import render_html_to_pdf
+from services.pdf_to_html import _extrair_paginas
 
 
 A4_WIDTH_MM = 210.0
@@ -103,10 +106,11 @@ def _decode_data_url(url: str) -> Image.Image:
     return Image.open(io.BytesIO(base64.b64decode(encoded))).convert("RGB")
 
 
-def _configure_a4(document: Document) -> None:
+def _configure_a4(document: Document, orientation: str = "V") -> None:
     section = document.sections[0]
-    section.page_width = Mm(A4_WIDTH_MM)
-    section.page_height = Mm(A4_HEIGHT_MM)
+    width, height = (A4_HEIGHT_MM, A4_WIDTH_MM) if orientation == "H" else (A4_WIDTH_MM, A4_HEIGHT_MM)
+    section.page_width = Mm(width)
+    section.page_height = Mm(height)
     for attr in ("left_margin", "right_margin", "top_margin", "bottom_margin", "header_distance", "footer_distance", "gutter"):
         setattr(section, attr, Emu(0))
     style = document.styles["Normal"]
@@ -147,8 +151,8 @@ def _insert_background(paragraph, image: Image.Image, width_emu: int, height_emu
     inline.getparent().replace(inline, anchor)
 
 
-def _position_paragraph(paragraph, x_twips: int, y_twips: int) -> None:
-    page_width = int(round(A4_WIDTH_MM / 25.4 * 1440))
+def _position_paragraph(paragraph, x_twips: int, y_twips: int, width_mm: float = A4_WIDTH_MM) -> None:
+    page_width = int(round(width_mm / 25.4 * 1440))
     width = max(page_width - x_twips, 200)
     ppr = paragraph._p.get_or_add_pPr()
     frame = parse_xml(
@@ -381,6 +385,75 @@ def convert_html_bytes_to_docx(content: bytes, title: str = "material") -> bytes
             raise
         except Exception as exc:
             raise HtmlToDocxError(f"Falha ao gerar o DOCX: {exc}") from exc
+        return docx_path.read_bytes()
+
+
+def convert_paginated_html_bytes_to_docx(
+    content: bytes,
+    title: str = "material",
+    orientation: str = "V",
+) -> bytes:
+    """Renderiza HTML livre e preserva fundo gráfico e textos editáveis no Word."""
+    # Templates já convertidos de PDF possuem as posições necessárias.
+    soup = BeautifulSoup(content, "html.parser")
+    if orientation == "V" and (soup.select_one('section.folha .folha-conteudo') or soup.select_one('div.page .t')):
+        return convert_html_bytes_to_docx(content, title)
+
+    with tempfile.TemporaryDirectory(prefix="workflow-html-to-docx-") as directory:
+        directory_path = Path(directory)
+        pdf_path = directory_path / "material.pdf"
+        render_html_to_pdf(
+            content,
+            pdf_path,
+            orientation,
+            directory_path,
+            fit_overflow=True,
+        )
+
+        # O Poppler separa vetores/imagens do texto sem rasterizar as palavras.
+        base = directory_path / "layout"
+        result = subprocess.run(
+            ["pdftohtml", "-c", "-s", "-dataurls", "-zoom", "2", str(pdf_path), str(base)],
+            capture_output=True, timeout=120, check=False,
+        )
+        raw_path = directory_path / "layout-html.html"
+        if result.returncode or not raw_path.is_file():
+            raise HtmlToDocxError("Não foi possível extrair o layout para o DOCX")
+        raw_html = raw_path.read_text(encoding="utf-8")
+        try:
+            _, pages = _extrair_paginas(raw_html)
+        except SystemExit as exc:
+            raise HtmlToDocxError("Não foi possível ler as páginas para o DOCX") from exc
+        fonts, _ = _read_css(raw_html)
+        document = Document()
+        _configure_a4(document, orientation)
+        width_mm, height_mm = (A4_HEIGHT_MM, A4_WIDTH_MM) if orientation == "H" else (A4_WIDTH_MM, A4_HEIGHT_MM)
+        for index, page in enumerate(pages, start=1):
+            anchor = _anchor_paragraph(document, page_break=index > 1)
+            scale = width_mm / 25.4 * 96 / page["largura"]
+            if page["fundo"]:
+                _insert_background(anchor, _decode_data_url(page["fundo"]), int(Mm(width_mm)), int(Mm(height_mm)), index)
+            for _, fragment in page["textos"]:
+                node = BeautifulSoup(fragment, "html.parser").find("p")
+                if node is None or not node.get_text(strip=True):
+                    continue
+                style = node.get("style", "")
+                top = _style_number(style, "top")
+                left = _style_number(style, "left")
+                font = next((fonts[name] for name in node.get("class", []) if name in fonts), None)
+                if font is None:
+                    raise HtmlToDocxError("Não foi possível ler a fonte de um trecho do documento")
+                paragraph = document.add_paragraph()
+                _position_paragraph(paragraph, round(left * scale * TWIPS_PER_PX), round(top * scale * TWIPS_PER_PX), width_mm)
+                paragraph.paragraph_format.line_spacing = Pt((font["line_height"] or font["size"] * NORMAL_LINE_HEIGHT) * scale * PT_PER_PX)
+                _add_runs(paragraph, node, font, scale)
+            # Fecha os frames nesta folha antes de inserir a próxima quebra.
+            # Sem este parágrafo, editores ancoram os textos na folha seguinte.
+            _anchor_paragraph(document, page_break=False)
+
+        document.core_properties.title = Path(title).stem or "material"
+        docx_path = directory_path / "material.docx"
+        document.save(str(docx_path))
         return docx_path.read_bytes()
 
 
