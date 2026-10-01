@@ -1,15 +1,47 @@
-# Link para acessar a Plataforma:
+# Back-End do Contraponto
 
-# <a href="https://evil-levi.01424210.xyz/" target="_blank" rel="noopener" style="font-size: 24px;">Clique aqui para acessar o link para a plataforma:</a>
+Back-end do [Contraponto](https://evil-levi.01424210.xyz/), uma plataforma baseada em agentes de inteligência artificial para apoiar docentes na criação de materiais didáticos a partir de fontes primárias.
 
-# https://evil-levi.01424210.xyz/
+O projeto disponibiliza a API responsável pela comunicação entre a interface web, os agentes de IA, o banco de dados e os serviços externos utilizados pela aplicação.
 
-# Contraponto — instalação Linux com Docker
+## Tecnologias
 
-Esta distribuição prepara o cadastro de professores, turmas, templates,
-materiais e os agentes de criação/edição em uma instalação independente.
-O Compose de instalação inclui PostgreSQL, backend e frontend estático com
-proxy HTTP/WebSocket. Não é necessário instalar Python, Node ou PostgreSQL no host.
+* **Python**
+* **FastAPI** — API REST
+* **LangGraph** — orquestração dos agentes
+* **LangChain** — integração com modelos e componentes de recuperação
+* **PostgreSQL** — persistência dos dados da aplicação
+* **SQLite / sqlite-vec** — componentes relacionados à recuperação de informações
+* **OpenAI API** — modelos de linguagem e embeddings
+* **JWT** — autenticação
+* **Docker / Docker Compose** — execução dos serviços
+
+As dependências do projeto estão disponíveis em `requirements.txt`.
+
+## Estrutura
+
+A organização principal do projeto é:
+
+```text
+back-end/
+├── auth/             # Autenticação e gerenciamento de usuários
+├── db/               # Configuração e acesso ao banco de dados
+├── graph/            # Fluxos e agentes do sistema
+├── routers/          # Endpoints da API
+├── schema/           # Estruturas relacionadas aos dados
+├── services/         # Serviços utilizados pela aplicação
+├── .env-example      # Exemplo das variáveis de ambiente
+├── API_FRONTEND.md   # Documentação da API utilizada pelo front-end
+├── Dockerfile
+├── docker-compose.yml
+├── docker-entrypoint.sh
+├── config.py
+├── main.py           # Ponto de entrada da aplicação
+├── README.md
+├── requirements.txt
+├── schemas.py
+└── test_agent.py
+```
 
 ## Arquitetura
 
@@ -17,6 +49,17 @@ O diagrama mostra a comunicação entre frontend, API, agente, ferramentas,
 fontes de dados e sandbox de execução.
 
 ![Arquitetura frontend/backend do Contraponto](docs/arquitetura-front-back.svg)
+
+### Agente LangGraph
+
+Grafo exportado diretamente com `GRAPH_BUILDER.get_graph().draw_mermaid()`.
+As setas condicionais mostram os destinos declarados; durante a execução,
+o roteamento escolhe o caminho conforme o estado da conversa.
+
+![Grafo do agente Contraponto gerado pelo LangGraph](docs/agente-langgraph-gerado.svg)
+
+Consulte a [documentação da arquitetura](docs/arquitetura-contraponto.md)
+para os endpoints, os dados enviados e as ferramentas disponíveis em cada modo.
 
 ### Agente LangGraph
 
@@ -224,16 +267,3 @@ CPU/memória/tempo, mas não há limite de gastos de IA por usuário implementad
 - **401/403/429 do provedor:** confira chave, modelo disponível, saldo e limites da conta.
 - **Frontend de desenvolvimento:** o target `development` mantém Vite; o target
   `production`, usado na instalação, serve o build estático via Nginx.
-
-## Antes de distribuir uma versão (mantenedor)
-
-- Versione os arquivos novos desta preparação e os dois corpora, especialmente
-  o CSV compactado. Um arquivo só presente na sua máquina não chega ao clone.
-- Publique versões compatíveis dos dois repositórios; não distribua `.env*`,
-  `workdirs`, índices locais, backups ou chaves reais.
-- Teste em volumes vazios e confirme cadastro/login, vínculos de turma,
-  geração real com uma chave de teste própria e exportação PDF.
-- Execute os testes em `tests/` e `npm run build` no frontend.
-- Documente a versão/checksum do índice para distribuição reproduzível.
-
-Referência de inicialização ordenada: [Docker Compose — dependências e saúde](https://docs.docker.com/compose/how-tos/startup-order/).
